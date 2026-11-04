@@ -11,24 +11,26 @@
   <meta property="og:title" content="Penguin Idle">
   <meta property="og:description" content="A cozy idle game: pat the penguin, grow a fishing colony and lead the Great Migration.">
   <meta property="og:url" content="https://atsukio.github.io/penguin-idle/">
+  <meta property="og:image" content="https://atsukio.github.io/penguin-idle/icons/icon-512.png">
   <meta name="twitter:card" content="summary">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐧</text></svg>">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="fonts/fonts.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="snow" aria-hidden="true"></div>
-
   <header class="topbar" id="topbar">
     <h1><span aria-hidden="true">🐧</span> Penguin Idle</h1>
-    <div class="totals" aria-live="off">
+    <div class="totals">
       <div class="fish-count"><span id="fish">0</span> <span class="unit">fish</span></div>
       <div class="fps"><span id="fps">0</span> per second</div>
     </div>
-    <div class="feather-badge" id="featherBadge" title="Emperor Feathers boost all fish production">
-      <span aria-hidden="true">🪶</span> <span id="featherTotal">0</span> <small>(<span id="featherBonus">+0%</span>)</small>
+    <div class="badges">
+      <span class="season-badge hidden" id="seasonBadge"></span>
+      <span class="feather-badge" id="featherBadge" title="Emperor Feathers boost all fish production">
+        <span aria-hidden="true">🪶</span> <span id="featherTotal">0</span> <small>(<span id="featherBonus">+0%</span>)</small>
+      </span>
     </div>
   </header>
 
@@ -36,44 +38,20 @@
     <!-- Left: the big penguin and the colony scene -->
     <section class="panel clicker" aria-label="Your penguin">
       <div id="buffs" class="buffs" aria-live="polite"></div>
-      <button id="bigPenguin" class="big-penguin" aria-label="Catch fish (Space or Enter)">
-        <svg viewBox="0 0 200 220" width="200" height="220" aria-hidden="true">
-          <ellipse cx="100" cy="212" rx="60" ry="8" fill="rgba(0,0,0,.2)"/>
-          <ellipse cx="100" cy="120" rx="70" ry="88" fill="#2b2a3d"/>
-          <ellipse cx="100" cy="135" rx="50" ry="70" fill="#fdf6ec"/>
-          <ellipse cx="38" cy="128" rx="14" ry="44" fill="#2b2a3d" transform="rotate(18 38 128)"/>
-          <ellipse cx="162" cy="128" rx="14" ry="44" fill="#2b2a3d" transform="rotate(-18 162 128)"/>
-          <!-- beanie -->
-          <path d="M52 58 Q100 -6 148 58 Z" fill="#e8735a"/>
-          <path d="M70 40 L76 58 M88 30 L90 58 M112 30 L110 58 M130 40 L124 58" stroke="#c95a44" stroke-width="3" stroke-linecap="round"/>
-          <rect x="46" y="52" width="108" height="15" rx="7.5" fill="#f6d7b0"/>
-          <circle cx="100" cy="20" r="12" fill="#fdf6ec"/>
-          <!-- face -->
-          <circle cx="78" cy="84" r="11" fill="#fff"/><circle cx="122" cy="84" r="11" fill="#fff"/>
-          <circle cx="80" cy="86" r="6" fill="#1a1a24"/><circle cx="120" cy="86" r="6" fill="#1a1a24"/>
-          <circle cx="82" cy="83" r="2" fill="#fff"/><circle cx="122" cy="83" r="2" fill="#fff"/>
-          <path d="M89 99 L111 99 L100 113 Z" fill="#f4a62a"/>
-          <ellipse cx="64" cy="104" rx="9" ry="5" fill="#ff9fb1" opacity=".75"/>
-          <ellipse cx="136" cy="104" rx="9" ry="5" fill="#ff9fb1" opacity=".75"/>
-          <!-- scarf -->
-          <rect x="42" y="116" width="116" height="18" rx="9" fill="#e8735a"/>
-          <rect x="42" y="122" width="116" height="4" fill="#f6d7b0" opacity=".85"/>
-          <rect x="116" y="126" width="20" height="46" rx="6" fill="#e8735a" transform="rotate(-8 126 126)"/>
-          <rect x="117" y="146" width="20" height="4" fill="#f6d7b0" opacity=".85" transform="rotate(-8 126 126)"/>
-          <path d="M120 172 l0 7 M125 172 l0 7 M130 171 l0 7 M135 170 l0 7" stroke="#e8735a" stroke-width="2.5" stroke-linecap="round" transform="rotate(-8 126 126)"/>
-          <!-- feet -->
-          <ellipse cx="78" cy="205" rx="18" ry="7" fill="#f4a62a"/>
-          <ellipse cx="122" cy="205" rx="18" ry="7" fill="#f4a62a"/>
-        </svg>
+      <button id="bigPenguin" class="big-penguin" aria-label="Pat the penguin to catch fish (Space or Enter)">
+        <svg id="penguinSvg" viewBox="0 -10 200 230" width="200" height="230" aria-hidden="true"></svg>
       </button>
-      <div class="click-info">+<span id="clickPower">1</span> fish per flipper-pat</div>
+      <div class="click-info">+<span id="clickPower">1</span> fish per pat</div>
       <div class="colony" id="colony" aria-hidden="true">
         <div class="lights" id="lights"></div>
         <div class="aurora" id="aurora"></div>
+        <div class="stars"></div>
         <div class="ground"></div>
         <div class="props" id="props"></div>
+        <div class="decor-layer" id="sceneDecor"></div>
         <div class="fire"><span class="glow"></span><span class="flame">🔥</span></div>
         <div class="waddlers" id="waddlers"></div>
+        <span class="shore-pill" id="shorePill"></span>
       </div>
     </section>
 
@@ -82,13 +60,17 @@
       <div class="tabs" role="tablist" aria-label="Sections">
         <button class="tab active" role="tab" id="tabbtn-colony" aria-controls="tab-colony" aria-selected="true" data-tab="colony">Colony</button>
         <button class="tab" role="tab" id="tabbtn-workshop" aria-controls="tab-workshop" aria-selected="false" tabindex="-1" data-tab="workshop">Workshop</button>
-        <button class="tab" role="tab" id="tabbtn-heritage" aria-controls="tab-heritage" aria-selected="false" tabindex="-1" data-tab="heritage">Migration</button>
+        <button class="tab" role="tab" id="tabbtn-heritage" aria-controls="tab-heritage" aria-selected="false" tabindex="-1" data-tab="heritage">Migration <span id="migrateBadge" class="pill hidden" aria-label="good time to migrate">!</span></button>
+        <button class="tab" role="tab" id="tabbtn-home" aria-controls="tab-home" aria-selected="false" tabindex="-1" data-tab="home">Home <span id="homeBadge" class="pill hidden"></span></button>
         <button class="tab" role="tab" id="tabbtn-achievements" aria-controls="tab-achievements" aria-selected="false" tabindex="-1" data-tab="achievements">Memories <span id="achCount" class="pill">0</span></button>
         <button class="tab" role="tab" id="tabbtn-stats" aria-controls="tab-stats" aria-selected="false" tabindex="-1" data-tab="stats">Settings</button>
       </div>
 
       <div class="tab-body" role="tabpanel" id="tab-colony" aria-labelledby="tabbtn-colony">
-        <h2>Upgrades</h2>
+        <div class="section-head">
+          <h2>Upgrades</h2>
+          <button class="btn small" id="buyAllBtn" disabled>Buy all</button>
+        </div>
         <div id="upgrades" class="upgrade-grid"></div>
         <p class="empty" id="noUpgrades">Keep fishing and new upgrades will turn up here.</p>
 
@@ -113,12 +95,22 @@
       <div class="tab-body hidden" role="tabpanel" id="tab-heritage" aria-labelledby="tabbtn-heritage">
         <div class="migrate-box">
           <h2>The Great Migration</h2>
-          <p>When the ice gets crowded, lead the colony to a fresh, snowy shore. You start over with no fish, colony or upgrades, but you earn
+          <p>When the ice gets crowded, lead the colony to a fresh shore. You start over with no fish, colony, upgrades or research, but you earn
             <b>Emperor Feathers</b>. Every feather you have ever earned keeps the whole colony warmer, adding <b>2%</b> fish production forever.</p>
           <p>Migrating now earns <b class="big"><span aria-hidden="true">🪶</span> <span id="pendingFeathers">0</span></b></p>
+          <p class="muted" id="migrateHint"></p>
           <p class="muted">Next feather at <span id="nextFeather">0</span> lifetime fish caught.</p>
           <button id="migrateBtn" class="btn primary">Migrate</button>
         </div>
+
+        <h2>Shores</h2>
+        <p class="muted">Each migration lands on a shore with its own twist. Pick where you'd like to go next. More shores open as you migrate.</p>
+        <div id="shores" class="shore-list"></div>
+
+        <h2>Helpers</h2>
+        <p class="muted">Penguins who do chores for you, hired once with feathers and yours forever. Switch any of them off whenever you like.</p>
+        <div id="helpers" class="helper-list"></div>
+
         <div class="tree-head">
           <h2>Heirloom Tree</h2>
           <div class="tree-meta">
@@ -135,6 +127,16 @@
         <div class="tree-inspector" id="treeInspector" aria-live="polite"></div>
       </div>
 
+      <div class="tab-body hidden" role="tabpanel" id="tab-home" aria-labelledby="tabbtn-home">
+        <h2>Mailbox</h2>
+        <p class="muted">Friends from around the colony write in with small requests each day.</p>
+        <div id="letters" class="letter-list"></div>
+        <div id="letterBonus" class="letter-bonus"></div>
+        <h2>Wardrobe</h2>
+        <p class="muted">Dress up the big penguin. New pieces unlock as you collect memories, explore and celebrate seasonal events.</p>
+        <div id="wardrobe" class="wardrobe"></div>
+      </div>
+
       <div class="tab-body hidden" role="tabpanel" id="tab-achievements" aria-labelledby="tabbtn-achievements">
         <p class="muted">Every memory you collect adds 1% to fish production.</p>
         <div id="achievements" class="ach-grid"></div>
@@ -148,7 +150,7 @@
           <label class="check"><input type="checkbox" id="optAmbience"> Fireside ambience (wind and crackling fire)</label>
           <label class="range">Screen shake <input type="range" id="optShake" min="0" max="1" step="0.1"></label>
           <label class="check"><input type="checkbox" id="optReduceMotion"> Reduce motion</label>
-          <label class="check"><input type="checkbox" id="optParticles"> Snowfall &amp; floating numbers</label>
+          <label class="check"><input type="checkbox" id="optParticles"> Snowfall, flying fish &amp; floating numbers</label>
           <label class="check"><input type="checkbox" id="optScientific"> Scientific notation</label>
           <label class="range">Text size
             <select id="optTextSize">
@@ -159,13 +161,29 @@
             </select>
           </label>
         </div>
+        <div class="row hidden" id="installRow"><button class="btn primary" id="installBtn">📲 Install Penguin Idle as an app</button></div>
+
+        <h2>Keyboard shortcuts</h2>
+        <dl class="stats hotkeys">
+          <dt><kbd>Space</kbd> / <kbd>Enter</kbd></dt><dd>Pat the penguin (when it's focused)</dd>
+          <dt><kbd>P</kbd></dt><dd>Focus the penguin</dd>
+          <dt><kbd>1</kbd>–<kbd>6</kbd></dt><dd>Switch tabs</dd>
+          <dt><kbd>B</kbd></dt><dd>Buy all affordable upgrades</dd>
+          <dt><kbd>M</kbd></dt><dd>Cycle buy amount (x1 / x10 / x100 / Max)</dd>
+          <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Move between tabs</dd>
+          <dt><kbd>Esc</kbd></dt><dd>Close a dialog or the details sheet</dd>
+        </dl>
+
         <h2>Statistics</h2>
+        <div id="statsGraph" class="stats-graph"></div>
         <dl id="stats" class="stats"></dl>
+
         <h2>Save</h2>
         <p class="muted">The game saves to this browser every 15 seconds and keeps a backup copy.</p>
         <div class="row">
           <button class="btn" id="saveBtn">Save now</button>
           <button class="btn" id="exportBtn">Export save</button>
+          <button class="btn" id="downloadBtn">Download save</button>
           <button class="btn" id="importBtn">Import save</button>
           <button class="btn danger" id="resetBtn">Hard reset</button>
         </div>
@@ -176,11 +194,17 @@
   </main>
 
   <div id="goldenLayer"></div>
-  <div id="fxLayer" aria-hidden="true"></div>
+  <canvas id="fxCanvas" aria-hidden="true"></canvas>
+  <div id="infoSheet" class="info-sheet hidden" role="region" aria-label="Details" aria-live="polite"></div>
   <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
   <div id="modalRoot"></div>
   <div id="tooltip" class="tooltip hidden" role="tooltip"></div>
 
-  <script src="game.js"></script>
+  <script src="src/data.js"></script>
+  <script src="src/engine.js"></script>
+  <script src="src/fx.js"></script>
+  <script src="src/penguin.js"></script>
+  <script src="src/ui.js"></script>
+  <script src="src/main.js"></script>
 </body>
 </html>

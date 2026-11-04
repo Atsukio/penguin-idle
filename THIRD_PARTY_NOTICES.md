@@ -1,17 +1,17 @@
 # Third-party notices
 
-Penguin Idle's own code and artwork (the penguin SVG, CSS and game logic) are MIT-licensed. See [LICENSE](LICENSE).
+Penguin Idle's own code and artwork (the penguin and icon SVGs, CSS and game logic) are MIT-licensed. See [LICENSE](LICENSE).
 
-The project also uses or includes the following third-party material.
+The project also includes or uses the following third-party material.
 
-## Fonts (loaded from Google Fonts, not bundled)
+## Fonts (bundled in `fonts/`)
 
-| Font | Author | License |
+| Font | Copyright | License |
 | --- | --- | --- |
-| [Fredoka](https://fonts.google.com/specimen/Fredoka) | Milena Brandão, Hafontia | [SIL Open Font License 1.1](https://openfontlicense.org) |
-| [Nunito](https://fonts.google.com/specimen/Nunito) | Vernon Adams, Cyreal, Jacques Le Bailly | [SIL Open Font License 1.1](https://openfontlicense.org) |
+| [Fredoka](https://fonts.google.com/specimen/Fredoka) | Copyright 2016 The Fredoka Project Authors | [SIL Open Font License 1.1](fonts/OFL-Fredoka.txt) |
+| [Nunito](https://fonts.google.com/specimen/Nunito) | Copyright 2014 The Nunito Project Authors | [SIL Open Font License 1.1](fonts/OFL-Nunito.txt) |
 
-The page requests these fonts from `fonts.googleapis.com` when it loads. If they can't load, the game falls back to system fonts.
+These are the Latin-subset WOFF2 files as served by Google Fonts, unmodified apart from being stored locally. The full licence texts are in the `fonts/` folder.
 
 ## Emoji
 
@@ -27,3 +27,7 @@ Copyright 2026 Abhishek Barali and the awesome-gamedev-agent-skills contributors
 They are licensed under the Apache License, Version 2.0. See [.claude/skills/LICENSE](.claude/skills/LICENSE) and [.claude/skills/NOTICE](.claude/skills/NOTICE).
 
 These are development guides for the AI coding assistant. They aren't part of the game the player downloads.
+
+## Development tools (not distributed)
+
+[Playwright](https://playwright.dev) (`@playwright/test`, Apache License 2.0) is used to run the browser tests. It's a development dependency only and isn't part of the published game.

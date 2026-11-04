@@ -1,0 +1,353 @@
+/* Penguin Idle — game feel: canvas particles, snow, screen shake and synthesized sound.
+ * Every event maps to an importance tier so the juice stays proportional:
+ *   small  — pats, colony purchases          (sound, number pop, a few bits)
+ *   medium — upgrades, milestones, heirlooms (chime, sparkle burst, a light sway)
+ *   large  — golden fish, migration          (fanfare, big burst, glow ring, stronger sway)
+ * Juice is brief and returns to rest. No white flashes (photosensitivity).
+ */
+(function (PI) {
+  "use strict";
+
+  const E = PI.engine;
+  const S = () => E.state;
+  const motionOK = () => !S().settings.reduceMotion;
+  const rand = (a, b) => a + Math.random() * (b - a);
+
+  // =====================================================================
+  // Canvas particle system (one canvas for snow, bits, number pops, rings and flying fish)
+  // =====================================================================
+  const Particles = {
+    canvas: null, ctx: null, dpr: 1, list: [], pool: [], running: false, last: 0, snowAcc: 0,
+    MAX: 400,
+
+    init() {
+      this.canvas = document.getElementById("fxCanvas");
+      this.ctx = this.canvas.getContext("2d");
+      const resize = () => {
+        this.dpr = Math.min(2, window.devicePixelRatio || 1);
+        this.canvas.width = Math.round(innerWidth * this.dpr);
+        this.canvas.height = Math.round(innerHeight * this.dpr);
+      };
+      resize();
+      window.addEventListener("resize", resize);
+      document.addEventListener("visibilitychange", () => { if (!document.hidden) this.start(); });
+      this.start();
+    },
+
+    get(props) {
+      if (this.list.length >= this.MAX) return null;
+      const p = this.pool.pop() || {};
+      Object.assign(p, { vx: 0, vy: 0, g: 0, rot: 0, vr: 0, age: 0, size: 16, alpha: 1, color: "#fff", text: "", onDone: null }, props);
+      this.list.push(p);
+      this.start();
+      return p;
+    },
+
+    start() {
+      if (this.running || document.hidden) return;
+      this.running = true;
+      this.last = performance.now();
+      requestAnimationFrame(t => this.frame(t));
+    },
+
+    snowWanted() { return S().settings.particles && motionOK(); },
+
+    frame(t) {
+      const dt = Math.min(0.05, (t - this.last) / 1000);
+      this.last = t;
+      const { ctx, dpr } = this;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, innerWidth, innerHeight);
+
+      if (this.snowWanted()) {   // gentle snowfall, ~2.5 flakes a second
+        this.snowAcc += dt * 2.5;
+        while (this.snowAcc >= 1) {
+          this.snowAcc -= 1;
+          this.get({ kind: "flake", x: rand(0, innerWidth), y: -10, vx: rand(-6, 10), vy: rand(25, 55), life: (innerHeight + 20) / 40, size: rand(1.5, 3.5), alpha: rand(0.4, 0.8) });
+        }
+      }
+
+      for (let i = this.list.length - 1; i >= 0; i--) {
+        const p = this.list[i];
+        p.age += dt;
+        const k = Math.min(1, p.age / p.life);
+        if (p.kind === "fly") {
+          // Quadratic arc from the penguin to the fish counter, eased in
+          const e = k * k;
+          const cx = (p.sx + p.tx) / 2 + p.bend, cy = Math.min(p.sy, p.ty) - 80;
+          p.x = (1 - e) * (1 - e) * p.sx + 2 * (1 - e) * e * cx + e * e * p.tx;
+          p.y = (1 - e) * (1 - e) * p.sy + 2 * (1 - e) * e * cy + e * e * p.ty;
+          p.rot += dt * 6;
+        } else {
+          p.vy += p.g * dt;
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          p.rot += p.vr * dt;
+        }
+        if (p.kind === "flake") p.x += Math.sin(p.age * 1.5 + p.size) * 0.3;
+
+        let alpha = p.alpha;
+        let scale = 1;
+        if (p.kind === "num") { alpha = k < 0.15 ? k / 0.15 : 1 - (k - 0.15) / 0.85; scale = k < 0.15 ? 0.6 + (k / 0.15) * 0.5 : 1.1 - Math.min(0.1, (k - 0.15)); }
+        if (p.kind === "bit") alpha = 1 - k;
+        if (p.kind === "ring") alpha = 1 - k;
+
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, alpha);
+        ctx.translate(p.x, p.y);
+        if (p.kind === "flake") {
+          ctx.fillStyle = "#fff";
+          ctx.beginPath(); ctx.arc(0, 0, p.size, 0, Math.PI * 2); ctx.fill();
+        } else if (p.kind === "ring") {
+          const r = 10 + k * 90;
+          ctx.strokeStyle = p.color; ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+        } else {
+          ctx.rotate(p.rot);
+          ctx.scale(scale, scale);
+          ctx.font = p.kind === "num" ? `600 ${p.size}px Fredoka, Nunito, sans-serif` : `${p.size}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif`;
+          ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          if (p.kind === "num") {
+            ctx.lineWidth = 4; ctx.strokeStyle = "rgba(40,20,30,.55)"; ctx.strokeText(p.text, 0, 0);
+            ctx.fillStyle = p.color; ctx.fillText(p.text, 0, 0);
+          } else {
+            ctx.fillText(p.text, 0, 0);
+          }
+        }
+        ctx.restore();
+
+        if (k >= 1 || p.y > innerHeight + 40) {
+          this.list.splice(i, 1);
+          if (p.onDone) p.onDone();
+          if (this.pool.length < this.MAX) this.pool.push(p);
+        }
+      }
+
+      if (this.list.length || this.snowWanted()) requestAnimationFrame(t2 => this.frame(t2));
+      else { this.running = false; ctx.clearRect(0, 0, innerWidth, innerHeight); }
+    },
+  };
+
+  function numberPop(text, x, y, crit = false) {
+    if (!S().settings.particles || x == null) return;
+    const p = Particles.get({ kind: "num", text, x: x + rand(-10, 10), y: y - 20, vx: rand(-25, 25), vy: -70, life: 1, size: crit ? 24 : 19, color: crit ? "#ffd27a" : "#ffffff" });
+    if (p && !motionOK()) { p.vx = 0; p.vy = 0; }
+  }
+
+  function burst(x, y, count, chars) {
+    if (!S().settings.particles || !motionOK() || !count || x == null) return;
+    for (let i = 0; i < count; i++) {
+      const a = rand(0, Math.PI * 2), sp = rand(80, 200);
+      Particles.get({ kind: "bit", text: chars[i % chars.length], x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 60, g: 260, vr: rand(-6, 6), life: 0.9, size: rand(14, 22) });
+    }
+  }
+
+  function glowRing(x, y) {
+    if (!motionOK() || x == null) return;
+    Particles.get({ kind: "ring", x, y, life: 0.7, color: "#ffd27a" });
+  }
+
+  // A few fish arc up to the fish counter, which bumps when they land
+  let flyBudget = 0;
+  function fishToCounter(x, y) {
+    if (!S().settings.particles || !motionOK() || x == null) return;
+    const now = performance.now();
+    if (now < flyBudget) return;   // at most ~6 a second, however fast the patting
+    flyBudget = now + 160;
+    const target = document.getElementById("fish").getBoundingClientRect();
+    Particles.get({
+      kind: "fly", text: "🐟", sx: x, sy: y, tx: target.left + target.width / 2, ty: target.top + target.height / 2,
+      bend: rand(-80, 80), life: 0.75, size: 18, x, y,
+      onDone: () => PI.ui && PI.ui.bumpCounter(),
+    });
+  }
+
+  // =====================================================================
+  // Screen shake: decaying trauma, smooth sines, visuals only
+  // =====================================================================
+  const Shake = {
+    trauma: 0, t: 0, running: false, last: 0,
+    add(amount) {
+      if (!motionOK() || S().settings.shake <= 0 || amount <= 0) return;
+      this.trauma = Math.min(1, this.trauma + amount);   // hits add; they don't reset
+      if (!this.running) { this.running = true; this.last = performance.now(); requestAnimationFrame(ts => this.step(ts)); }
+    },
+    step(ts) {
+      const dt = Math.min(0.05, (ts - this.last) / 1000);
+      this.last = ts;
+      this.trauma = Math.max(0, this.trauma - 1.4 * dt);   // linear decay, so it always ends
+      const layout = document.getElementById("layout");
+      if (this.trauma <= 0 || !motionOK()) { layout.style.transform = ""; this.running = false; this.trauma = 0; return; }
+      this.t += dt * 30;
+      const s = this.trauma * this.trauma * S().settings.shake;   // quadratic: soft at low trauma
+      const ox = 7 * s * (0.6 * Math.sin(this.t * 1.7) + 0.4 * Math.sin(this.t * 3.1));
+      const oy = 5 * s * (0.6 * Math.sin(this.t * 2.3 + 1) + 0.4 * Math.sin(this.t * 4.3));
+      const rot = 0.4 * s * Math.sin(this.t * 1.1);
+      layout.style.transform = `translate(${ox.toFixed(2)}px, ${oy.toFixed(2)}px) rotate(${rot.toFixed(3)}deg)`;
+      requestAnimationFrame(t2 => this.step(t2));
+    },
+  };
+
+  // =====================================================================
+  // Soft synthesized sounds (Web Audio, no files)
+  // =====================================================================
+  const Sound = {
+    ctx: null, master: null, amb: null, noise: null, lastPop: 0,
+    ensure() {
+      if (!this.ctx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return null;
+        this.ctx = new AC();
+        this.master = this.ctx.createGain();
+        this.master.connect(this.ctx.destination);
+      }
+      this.master.gain.value = S().settings.volume;
+      if (this.ctx.state === "suspended") this.ctx.resume().catch(() => {});
+      return this.ctx;
+    },
+    tone(freq, when, dur, type = "sine", vol = 0.12) {
+      const c = this.ctx, o = c.createOscillator(), g = c.createGain();
+      o.type = type;
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(0.0001, when);
+      g.gain.exponentialRampToValueAtTime(vol, when + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+      o.connect(g).connect(this.master);
+      o.start(when);
+      o.stop(when + dur + 0.05);
+    },
+    play(name) {
+      const st = S().settings;
+      if (!st.sound || st.volume <= 0) return;
+      const c = this.ensure();
+      if (!c) return;
+      const t = c.currentTime + 0.01;
+      const P = [523.25, 587.33, 659.25, 783.99, 880, 1046.5, 1174.66, 1318.51];   // pentatonic-ish, always consonant
+      switch (name) {
+        case "pop": {
+          const now = performance.now();
+          if (now - this.lastPop < 70) return;   // fast patting shouldn't become a drone
+          this.lastPop = now;
+          this.tone(P[Math.floor(Math.random() * 5)], t, 0.14, "sine", 0.1);
+          break;
+        }
+        case "buy":     this.tone(659.25, t, 0.12, "triangle", 0.08); this.tone(987.77, t + 0.06, 0.2, "triangle", 0.07); break;
+        case "chime":   [P[0], P[2], P[4]].forEach((f, i) => this.tone(f, t + i * 0.07, 0.4, "triangle", 0.08)); break;
+        case "memory":  [P[5], P[7], P[6]].forEach((f, i) => this.tone(f, t + i * 0.11, 0.6, "sine", 0.07)); break;
+        case "sparkle": [P[4], P[6], P[7]].forEach((f, i) => this.tone(f, t + i * 0.05, 0.3, "sine", 0.05)); break;
+        case "fanfare": [P[0], P[2], P[3], P[5], P[7]].forEach((f, i) => this.tone(f, t + i * 0.08, 0.7, "sine", 0.09)); this.tone(261.63, t, 1.2, "triangle", 0.05); break;
+        case "migrate": [261.63, 329.63, 392, 523.25].forEach((f, i) => this.tone(f, t + i * 0.16, 1.8, "sine", 0.07)); break;
+        case "letter":  [P[2], P[4], P[5]].forEach((f, i) => this.tone(f, t + i * 0.09, 0.45, "sine", 0.06)); break;
+        case "yawn":    this.tone(392, t, 0.5, "sine", 0.03); this.tone(330, t + 0.25, 0.6, "sine", 0.025); break;
+        case "tick":    this.tone(880, t, 0.08, "sine", 0.05); break;
+      }
+    },
+    setVolume() { if (this.master) this.master.gain.value = S().settings.volume; },
+    noiseBuffer(seconds, brown) {
+      const c = this.ctx, len = Math.floor(c.sampleRate * seconds), buf = c.createBuffer(1, len, c.sampleRate), d = buf.getChannelData(0);
+      let last = 0;
+      for (let i = 0; i < len; i++) {
+        const w = Math.random() * 2 - 1;
+        if (brown) { last = (last + 0.02 * w) / 1.02; d[i] = last * 3.5; } else d[i] = w;
+      }
+      return buf;
+    },
+    crackle(when) {
+      const c = this.ctx;
+      if (!this.noise) this.noise = this.noiseBuffer(0.05, false);
+      const src = c.createBufferSource(), hp = c.createBiquadFilter(), g = c.createGain();
+      src.buffer = this.noise;
+      hp.type = "highpass"; hp.frequency.value = 1500 + Math.random() * 2000;
+      g.gain.setValueAtTime(0.0001, when);
+      g.gain.exponentialRampToValueAtTime(0.05 + Math.random() * 0.06, when + 0.003);
+      g.gain.exponentialRampToValueAtTime(0.0001, when + 0.04);
+      src.connect(hp).connect(g).connect(this.master);
+      src.start(when);
+      src.stop(when + 0.06);
+    },
+    setAmbience(on) {
+      if (on && !this.amb) {
+        const c = this.ensure();
+        if (!c) return;
+        const src = c.createBufferSource();
+        src.buffer = this.noiseBuffer(4, true);
+        src.loop = true;
+        const lp = c.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 450;
+        const g = c.createGain(); g.gain.value = 0.22;
+        const lfo = c.createOscillator(), lfoG = c.createGain();   // slow swell, like wind outside
+        lfo.frequency.value = 0.07; lfoG.gain.value = 0.1;
+        lfo.connect(lfoG).connect(g.gain);
+        src.connect(lp).connect(g).connect(this.master);
+        src.start(); lfo.start();
+        const timer = setInterval(() => {
+          if (document.hidden || c.state !== "running") return;
+          const n = Math.random() < 0.5 ? 1 : 2 + Math.floor(Math.random() * 3);
+          for (let k = 0; k < n; k++) this.crackle(c.currentTime + Math.random() * 0.35);
+        }, 420);
+        this.amb = { src, lfo, g, timer };
+      } else if (!on && this.amb) {
+        this.amb.src.stop(); this.amb.lfo.stop(); this.amb.g.disconnect(); clearInterval(this.amb.timer);
+        this.amb = null;
+      }
+    },
+  };
+
+  // =====================================================================
+  // Tiers and event wiring
+  // =====================================================================
+  const TIERS = {
+    small:  { bits: 2,  trauma: 0,    ring: false },
+    medium: { bits: 8,  trauma: 0.22, ring: false },
+    large:  { bits: 22, trauma: 0.5,  ring: true },
+  };
+
+  function feedback(tier, pos, { sound, chars = ["✨", "❄️", "💛"] } = {}) {
+    const t = TIERS[tier];
+    if (sound) Sound.play(sound);
+    if (pos && pos.x != null) {
+      burst(pos.x, pos.y, t.bits, chars);
+      if (t.ring) glowRing(pos.x, pos.y);
+    }
+    Shake.add(t.trauma);
+  }
+
+  const restartClass = (el, cls) => { if (!el) return; el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); };
+
+  function wire() {
+    const bus = PI.bus;
+    bus.on("click", d => {
+      if (d.crit) {   // Big Catch: a step up from a normal pat, still short of a golden fish
+        Sound.play("sparkle");
+        numberPop(`Big Catch! +${PI.fmt(d.amount)}`, d.x, d.y, true);
+        burst(d.x, d.y, 5, ["🐟", "🐡", "✨"]);
+      } else {
+        Sound.play("pop");
+        numberPop(`+${PI.fmt(d.amount)}`, d.x, d.y);
+      }
+      fishToCounter(d.x, d.y);
+    });
+    bus.on("buyBuilding", d => { Sound.play("buy"); restartClass(PI.ui && PI.ui.buildingRow(d.id), "pop"); });
+    bus.on("milestone", d => { if (!d.quiet) feedback("medium", d.origin, { sound: "chime", chars: [d.b.icon, "✨", "💛"] }); });
+    bus.on("buyUpgrade", d => feedback("medium", d.origin, { sound: "sparkle", chars: [d.u.icon, "✨"] }));
+    bus.on("buyAll", d => feedback("medium", d.origin, { sound: "sparkle", chars: ["✨", "🛍️", "💛"] }));
+    bus.on("buyResearch", d => {
+      Sound.play("buy");
+      if (d.origin) burst(d.origin.x, d.origin.y, 3, [d.r.icon, "✨"]);
+      restartClass(document.querySelector(`#research [data-id="${d.r.id}"]`), "pop");
+    });
+    bus.on("learnNode", d => {
+      feedback(d.n.capstone ? "large" : "medium", d.origin, { sound: d.n.capstone ? "fanfare" : "chime", chars: [d.n.icon, "🪶", "✨"] });
+      restartClass(document.querySelector(`#tree [data-id="${d.n.id}"]`), "pop");
+    });
+    bus.on("hireHelper", d => feedback("medium", d.origin, { sound: "fanfare", chars: [d.h.icon, "✨", "💛"] }));
+    bus.on("respec", () => Sound.play("chime"));
+    bus.on("golden", d => { if (!d.auto) feedback("large", d, { sound: "fanfare", chars: ["🐟", "✨", "💛", "⭐"] }); else Sound.play("sparkle"); });
+    bus.on("achievements", () => Sound.play("memory"));
+    bus.on("migrate", () => feedback("large", { x: innerWidth / 2, y: innerHeight / 2 }, { sound: "migrate", chars: ["🐧", "❄️", "🪶"] }));
+    bus.on("letterClaimed", d => feedback("medium", d.origin, { sound: "letter", chars: ["💌", "✨"] }));
+    bus.on("letterBonus", d => feedback("large", d.origin, { sound: "fanfare", chars: ["📦", "🎁", "✨"] }));
+    bus.on("outfit", () => Sound.play("sparkle"));
+  }
+
+  PI.fx = { Particles, Shake, Sound, feedback, burst, numberPop, glowRing, fishToCounter, init() { Particles.init(); wire(); } };
+})(window.PI = window.PI || {});
