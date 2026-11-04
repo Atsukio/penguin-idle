@@ -20,16 +20,19 @@ To host your own copy, fork the repo, then go to **Settings → Pages**, set **S
 
 | System | What it does |
 | --- | --- |
-| Patting | Pat the penguin for fish. Mitten upgrades double it, then add a % of your fish per second. |
+| Patting | Pat the penguin for fish. Patting upgrades multiply it, then add a % of your fish per second. Some pats are **Big Catches** (×10 or more). |
 | Colony (12 tiers) | Sleepy Chicks, Scarf-Wrapped Fishers, Cocoa Igloos, Lantern Boats, Net-Knitting Circles and more. Costs grow 15% per purchase. Buy x1 / x10 / x100 / Max. |
 | Milestones | At 10, 25, 50, 100, 150… owned, that colony member's output doubles. |
-| Upgrades | Unlocked by ownership counts and fish caught. Each doubles output or adds a global %. |
+| Upgrades (123) | Seven themed tiers per colony member, plus patting, whole-colony and golden-fish upgrades. Each has its own icon. |
+| Synergies | 12 pairings where two colony members boost each other, e.g. Orca Tugboats: Lantern Boats +5% per Orca Ferry. |
+| Scrapbook | Upgrades that grow with every memory you've collected. |
+| Workshop | 12 research projects levelled up with fish: pats, production, Big Catch chance and size, golden fish, offline pace, costs, synergy strength and milestone power. Resets on migration. |
 | Golden fish | A rare fish swims by. Catching it gives a Lucky Catch, a Cocoa Rush (×7 production) or a Flipper Flurry (×777 pats). |
 | Migration (prestige) | Reset for Emperor Feathers (√(lifetime fish ÷ 1B)). Each feather ever earned gives +2% production. |
-| Heirlooms | Spend feathers on permanent perks such as chick helpers, better offline gains and head starts. |
-| Memories | 64 achievements, each giving +1% production. |
+| Heirloom Tree | A permanent skill tree bought with feathers: 🏕️ Hearth (production and economy), 🧤 Flipper (patting and Big Catches) and 🌙 Wanderer (golden fish and offline). Nodes have prerequisites and levels, each branch ends in a capstone, and refunds are free. |
+| Memories | 72 achievements, each giving +1% production. |
 | Colony scene | Huts, igloos, boats, balloons and the aurora appear as you build them. Penguins gather round the fire. |
-| Offline progress | Earns 25% of normal production while you're away (upgradeable to 100%, capped at 24 h or 72 h). |
+| Offline progress | Earns 25% of normal production while you're away. The Wanderer branch and the Workshop raise this to as much as 150% and extend the cap past 24 hours. |
 
 ## Feel, accessibility and saves
 
@@ -49,7 +52,7 @@ There are no accounts, analytics, cookies or ads. Progress is saved only in your
 
 ## Tweaking balance
 
-All numbers are in the data tables at the top of `game.js`: `BUILDINGS`, `TIER_REQS`/`TIER_COSTS`, `GLOBAL_UPS`, `HERITAGE`, `FEATHER_SCALE`. The browser console exposes `penguinIdle.state` for testing (for example `penguinIdle.state.fish = 1e12`, or `penguinIdle.spawnGolden()`).
+All numbers are in the data tables at the top of `game.js`: `BUILDINGS`, `BUILDING_UPGRADES`, `TIER_REQS`/`TIER_COSTS`, `GLOBAL_UPS`, `SYNERGIES`, `RESEARCH`, `TREE`, `FEATHER_SCALE`. Every bonus is folded into one modifier object in `recompute()`. The browser console exposes `penguinIdle.state` for testing (for example `penguinIdle.state.fish = 1e12`, or `penguinIdle.spawnGolden()`).
 
 ## License
 

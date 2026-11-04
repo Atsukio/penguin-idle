@@ -28,7 +28,7 @@
       <div class="fps"><span id="fps">0</span> per second</div>
     </div>
     <div class="feather-badge" id="featherBadge" title="Emperor Feathers boost all fish production">
-      <span aria-hidden="true">🪶</span> <span id="featherTotal">0</span> <small>(+<span id="featherBonus">0</span>%)</small>
+      <span aria-hidden="true">🪶</span> <span id="featherTotal">0</span> <small>(<span id="featherBonus">+0%</span>)</small>
     </div>
   </header>
 
@@ -81,6 +81,7 @@
     <section class="panel shop" aria-label="Colony management">
       <div class="tabs" role="tablist" aria-label="Sections">
         <button class="tab active" role="tab" id="tabbtn-colony" aria-controls="tab-colony" aria-selected="true" data-tab="colony">Colony</button>
+        <button class="tab" role="tab" id="tabbtn-workshop" aria-controls="tab-workshop" aria-selected="false" tabindex="-1" data-tab="workshop">Workshop</button>
         <button class="tab" role="tab" id="tabbtn-heritage" aria-controls="tab-heritage" aria-selected="false" tabindex="-1" data-tab="heritage">Migration</button>
         <button class="tab" role="tab" id="tabbtn-achievements" aria-controls="tab-achievements" aria-selected="false" tabindex="-1" data-tab="achievements">Memories <span id="achCount" class="pill">0</span></button>
         <button class="tab" role="tab" id="tabbtn-stats" aria-controls="tab-stats" aria-selected="false" tabindex="-1" data-tab="stats">Settings</button>
@@ -103,6 +104,12 @@
         <div id="buildings" class="building-list"></div>
       </div>
 
+      <div class="tab-body hidden" role="tabpanel" id="tab-workshop" aria-labelledby="tabbtn-workshop">
+        <h2>Workshop</h2>
+        <p class="muted">Research projects cost fish and level up as you go. New projects open as the colony catches more fish. Everything here gets packed away when you migrate, so the Workshop starts fresh on each new shore.</p>
+        <div id="research" class="research-list"></div>
+      </div>
+
       <div class="tab-body hidden" role="tabpanel" id="tab-heritage" aria-labelledby="tabbtn-heritage">
         <div class="migrate-box">
           <h2>The Great Migration</h2>
@@ -112,9 +119,20 @@
           <p class="muted">Next feather at <span id="nextFeather">0</span> lifetime fish caught.</p>
           <button id="migrateBtn" class="btn primary">Migrate</button>
         </div>
-        <h2>Heirlooms <small class="muted">— spending feathers never lowers your production bonus</small></h2>
-        <p>Feathers to spend: <b><span aria-hidden="true">🪶</span> <span id="featherSpendable">0</span></b></p>
-        <div id="heritage" class="heritage-list"></div>
+        <div class="tree-head">
+          <h2>Heirloom Tree</h2>
+          <div class="tree-meta">
+            <span>Feathers to spend: <b><span aria-hidden="true">🪶</span> <span id="featherSpendable">0</span></b></span>
+            <button class="btn small" id="respecBtn">Refund feathers</button>
+          </div>
+        </div>
+        <p class="muted">Pick a node to see what it does, then learn it with feathers. Spending feathers never lowers your production bonus, and refunds are free, so try different paths.</p>
+        <div class="tree-branches" aria-hidden="true"><span>🏕️ Hearth</span><span>🧤 Flipper</span><span>🌙 Wanderer</span></div>
+        <div class="tree-wrap" id="treeWrap">
+          <svg class="tree-lines" id="treeLines" aria-hidden="true"></svg>
+          <div class="tree" id="tree" role="group" aria-label="Heirloom Tree"></div>
+        </div>
+        <div class="tree-inspector" id="treeInspector" aria-live="polite"></div>
       </div>
 
       <div class="tab-body hidden" role="tabpanel" id="tab-achievements" aria-labelledby="tabbtn-achievements">
