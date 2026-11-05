@@ -142,7 +142,8 @@ h2 { font-size: 1.1rem; margin: 16px 0 8px; letter-spacing: .01em; }
   border: none; border-radius: 50%; padding: 18px; margin-top: 4px;
   -webkit-tap-highlight-color: transparent;
   animation: bob 3.4s ease-in-out infinite;
-  touch-action: manipulation;
+  touch-action: none;          /* rubbing the penguin pats it instead of scrolling the page */
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
 }
 .big-penguin:focus-visible { border-radius: 50%; outline-offset: -4px; }
 .big-penguin svg { display: block; transform-origin: 50% 95%; transition: transform .25s var(--ease-out); }
@@ -300,8 +301,9 @@ h2 { font-size: 1.1rem; margin: 16px 0 8px; letter-spacing: .01em; }
 .building .icon { font-size: 2rem; text-align: center; }
 .building .name { font-weight: 800; }
 .building .desc { font-size: .85rem; color: var(--muted); }
-.building .cost { font-variant-numeric: tabular-nums; font-weight: 700; }
-.building .owned { font-family: "Fredoka", sans-serif; font-size: 1.7rem; color: rgba(251, 239, 224, .35); text-align: right; }
+.building .b-right { display: flex; align-items: baseline; justify-content: flex-end; gap: 10px; white-space: nowrap; }
+.building .cost { font-variant-numeric: tabular-nums; font-weight: 700; font-size: .9rem; }
+.building .owned { font-family: "Fredoka", sans-serif; font-size: 1.7rem; color: rgba(251, 239, 224, .35); text-align: right; min-width: 1.2em; }
 /* State is shown by more than colour: unaffordable rows are dimmed too */
 .building.affordable { border-color: var(--good); }
 .building.affordable .cost { color: var(--good); }
@@ -392,7 +394,7 @@ h2 { font-size: 1.1rem; margin: 16px 0 8px; letter-spacing: .01em; }
 /* ---------- Workshop ---------- */
 .research-list { display: flex; flex-direction: column; gap: 8px; }
 .research {
-  display: grid; grid-template-columns: 48px 1fr auto; align-items: center; gap: 12px;
+  display: grid; grid-template-columns: 48px 1fr; align-items: center; gap: 12px;
   background: var(--panel-2); border: 2px solid var(--border); border-radius: 14px;
   padding: 8px 14px; text-align: left; width: 100%; min-height: 64px;
   transition: transform .15s var(--ease-out), opacity .2s, border-color .2s;
@@ -402,7 +404,7 @@ h2 { font-size: 1.1rem; margin: 16px 0 8px; letter-spacing: .01em; }
 .research .name { font-weight: 800; }
 .research .r-level { font-weight: 700; font-size: .8rem; color: var(--gold); margin-left: 4px; }
 .research .desc { font-size: .85rem; color: var(--muted); }
-.research .cost { font-weight: 700; font-variant-numeric: tabular-nums; }
+.research .cost { font-weight: 700; font-size: .8rem; font-variant-numeric: tabular-nums; margin-left: 6px; white-space: nowrap; }
 .research.affordable { border-color: var(--good); }
 .research.affordable .cost { color: var(--good); }
 .research:not(.affordable):not(.maxed) .cost { color: var(--bad); }

@@ -245,10 +245,10 @@
         <div class="icon" aria-hidden="true">${b.icon}</div>
         <div>
           <div class="name">${b.name}</div>
-          <div class="desc"><span class="b-cost cost"></span> · <span class="b-fps"></span></div>
+          <div class="desc b-fps"></div>
           <div class="milestone-bar" aria-hidden="true"><div></div></div>
         </div>
-        <div class="owned" aria-hidden="true">0</div>`;
+        <div class="b-right"><span class="b-cost cost"></span><span class="owned" aria-hidden="true">0</span></div>`;
       el.addEventListener("click", e => activate("building", b.id, () => E.buyBuilding(b.id, buyCount(b), pointFrom(e, el))));
       attachTooltip(el, () => buildingTooltip(b));
       const preview = on => () => { if (on) previewId = b.id; else if (previewId === b.id) previewId = null; paintBuilding(b); };
@@ -358,11 +358,10 @@
       el.innerHTML = `
         <div class="icon" aria-hidden="true">${r.icon}</div>
         <div>
-          <div class="name">${r.name} <span class="r-level"></span></div>
+          <div class="name">${r.name} <span class="r-level"></span> <span class="cost r-cost"></span></div>
           <div class="desc r-effect"></div>
           <div class="r-bar" aria-hidden="true"><div></div></div>
-        </div>
-        <div class="cost r-cost"></div>`;
+        </div>`;
       el.addEventListener("click", e => E.buyResearch(r.id, pointFrom(e, el)));
       list.appendChild(el);
     });
@@ -1335,6 +1334,58 @@
       : `<b>Welcome to ${d.shore.icon} ${d.shore.name}!</b> The colony settles in with 🪶 ${fmt(d.feathers)} feathers.`));
   }
 
+  // Patting: a tap or click pats once, rubbing back and forth (or up and down) pats as you go,
+  // and holding still keeps patting after a moment. Keyboard Space/Enter still arrive as clicks.
+  const STROKE_PX = 40;        // finger/mouse travel per stroke pat
+  const STROKE_GAP = 70;       // fastest stroke pats can come (ms), about 14 a second
+  const HOLD_DELAY = 450;      // hold this long before patting starts repeating
+  const HOLD_EVERY = 200;      // then pat this often (5 a second)
+  function wirePatting(peng) {
+    let active = null;         // { id, x, y, travel, lastPat, holdTimer }
+    const pat = pt => E.clickPenguin(pt);
+    const stopHold = () => { if (active) { clearTimeout(active.holdTimer); clearInterval(active.holdTimer); } };
+    const startHold = () => {
+      stopHold();
+      active.holdTimer = setTimeout(() => {
+        if (!active) return;
+        active.holdTimer = setInterval(() => {
+          if (!active) return;
+          active.lastPat = performance.now();
+          pat({ x: active.x, y: active.y });
+        }, HOLD_EVERY);
+      }, HOLD_DELAY);
+    };
+    const end = e => {
+      if (!active || (e && e.pointerId !== active.id)) return;
+      stopHold();
+      active = null;
+      peng.classList.remove("patting");
+    };
+    peng.addEventListener("pointerdown", e => {
+      if (e.button !== 0 || active) return;
+      active = { id: e.pointerId, x: e.clientX, y: e.clientY, travel: 0, lastPat: performance.now(), holdTimer: 0 };
+      try { peng.setPointerCapture(e.pointerId); } catch (_) { /* not supported */ }
+      peng.classList.add("patting");
+      pat({ x: e.clientX, y: e.clientY });
+      startHold();
+    });
+    peng.addEventListener("pointermove", e => {
+      if (!active || e.pointerId !== active.id) return;
+      active.travel += Math.hypot(e.clientX - active.x, e.clientY - active.y);
+      active.x = e.clientX; active.y = e.clientY;
+      if (active.travel < STROKE_PX) return;
+      startHold();             // moving resets the hold, so a rub never doubles up with it
+      const t = performance.now();
+      if (t - active.lastPat < STROKE_GAP) return;
+      active.travel = 0;
+      active.lastPat = t;
+      pat({ x: e.clientX, y: e.clientY });
+    });
+    ["pointerup", "pointercancel", "lostpointercapture"].forEach(ev => peng.addEventListener(ev, end));
+    // Pointer presses already patted on pointerdown; only keyboard clicks (detail 0) pat here
+    peng.addEventListener("click", e => { if (e.detail === 0) pat(pointFrom(e, peng)); });
+  }
+
   function init() {
     buildBuildingList();
     buildResearch();
@@ -1347,7 +1398,7 @@
     wire();
 
     const peng = $("bigPenguin");
-    peng.addEventListener("click", e => E.clickPenguin(pointFrom(e, peng)));
+    wirePatting(peng);
     peng.addEventListener("keydown", e => { if (e.repeat && (e.key === " " || e.key === "Enter")) e.preventDefault(); });
 
     // Tabs with roving focus and arrow-key navigation

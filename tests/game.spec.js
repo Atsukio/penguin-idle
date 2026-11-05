@@ -40,6 +40,47 @@ test("patting earns fish and buys a Sleepy Chick", async ({ page }) => {
   await expect(page.locator("#buildings .building").first().locator(".owned")).toHaveText("1");
 });
 
+test("rubbing the penguin pats it, holding keeps patting, and the keyboard still pats once", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  const clicks = () => state(page, () => window.penguinIdle.state.stats.clicks);
+  const box = await page.locator("#bigPenguin").boundingBox();
+  const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+  // Rub side to side: the press pats once, then each stroke pats (capped at about 14 a second)
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  for (let i = 0; i < 6; i++) {
+    await page.mouse.move(cx + (i % 2 ? -50 : 50), cy, { steps: 4 });
+    await page.waitForTimeout(90);
+  }
+  await page.mouse.up();
+  const rubbed = await clicks();
+  expect(rubbed).toBeGreaterThanOrEqual(5);
+  // Up and down works too
+  await page.mouse.down();
+  for (let i = 0; i < 4; i++) {
+    await page.mouse.move(cx, cy + (i % 2 ? -50 : 50), { steps: 4 });
+    await page.waitForTimeout(90);
+  }
+  await page.mouse.up();
+  const stroked = await clicks();
+  expect(stroked).toBeGreaterThanOrEqual(rubbed + 4);
+  // Holding still: one pat on press, then repeats after a short pause
+  await page.mouse.down();
+  await page.waitForTimeout(1100);
+  await page.mouse.up();
+  const held = await clicks();
+  expect(held - stroked).toBeGreaterThanOrEqual(3);
+  expect(held - stroked).toBeLessThanOrEqual(6);
+  // Stops when let go
+  await page.waitForTimeout(500);
+  expect(await clicks()).toBe(held);
+  // Keyboard: one pat per press
+  await page.locator("#bigPenguin").focus();
+  await page.keyboard.press("Enter");
+  expect(await clicks()).toBe(held + 1);
+});
+
 test("hovering with x10 shows the row's new count and output, and the preview matches the real purchase", async ({ page }) => {
   await page.goto("/");
   await closeModals(page);
