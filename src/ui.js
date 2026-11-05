@@ -299,7 +299,7 @@
       const cost = E.costOf(b, owned, n);
       // Max changes as fish come in, and the phone's picked row changes on taps, so keep previews current
       if (previewId === b.id || e.root.classList.contains("previewing") || (sheetSel && sheetSel.id === b.id)) paintBuilding(b);
-      setText(e.cost, `${n > 1 ? `${n}× ` : ""}🐟 ${fmt(cost)}`);
+      setText(e.cost, `${n > 1 || buyAmount === "max" ? `${n}× ` : ""}🐟 ${fmt(cost)}`);
       const can = S().fish >= cost;
       e.root.classList.toggle("affordable", can);
       e.root.setAttribute("aria-label", visible
@@ -637,6 +637,7 @@
       ["Fish caught all time", fmt(S().lifetimeFish)],
       ["Fish from patting", fmt(st.clickFish)],
       ["Penguin pats", fmt(st.clicks)],
+      ["Pats by rubbing", fmt(st.rubPats)],
       ["Big Catches", `${fmt(st.bigCatches)} (${+(M().critChance * 100).toFixed(1)}% chance, ×${fmt(M().critMult)})`],
       ["Golden fish caught", fmt(st.goldenClicks)],
       ["Colony members", fmt(D.totalColony(S()))],
@@ -1255,6 +1256,20 @@
     setText(lb, claimable ? String(claimable) : "");
     lb.classList.toggle("hidden", !claimable);
     $("migrateBadge").classList.toggle("hidden", !migrateIsGood());
+    const news = hasNews();
+    $("newsBadge").classList.toggle("hidden", !news);
+    $("whatsNewBtn").classList.toggle("has-news", news);
+  }
+  const hasNews = () => S().seenVersion !== D.GAME_VERSION;
+
+  // What you're saving up for, under the penguin
+  function renderNextGoal() {
+    const g = E.nextGoal(), el = $("nextGoal");
+    el.classList.toggle("hidden", !g);
+    if (!g) return;
+    const eta = g.secs == null ? "" : g.secs < 1 ? " · any moment" : g.secs > 86400 * 2 ? "" : ` · about ${fmtTime(Math.max(1, g.secs))}`;
+    setText(el, `Next: ${g.icon} ${g.name} in 🐟 ${fmt(Math.ceil(g.need))}${eta}`);
+    el.title = `${g.name} costs 🐟 ${fmt(g.cost)}`;
   }
 
   function bumpCounter() {
@@ -1288,6 +1303,7 @@
     if (currentTab === "colony") renderUpgrades();
     if (currentTab === "stats") renderStats();
     updateBadges();
+    renderNextGoal();
     rebuildScene();
     updateBasket();
     renderSeasonBadge();
@@ -1335,23 +1351,25 @@
   }
 
   // Patting: a tap or click pats once, rubbing back and forth (or up and down) pats as you go,
-  // and holding still keeps patting after a moment. Keyboard Space/Enter still arrive as clicks.
+  // and holding still keeps patting after a moment (unless switched off in Settings).
+  // Keyboard Space/Enter still arrive as clicks.
   const STROKE_PX = 40;        // finger/mouse travel per stroke pat
   const STROKE_GAP = 70;       // fastest stroke pats can come (ms), about 14 a second
   const HOLD_DELAY = 450;      // hold this long before patting starts repeating
   const HOLD_EVERY = 200;      // then pat this often (5 a second)
   function wirePatting(peng) {
     let active = null;         // { id, x, y, travel, lastPat, holdTimer }
-    const pat = pt => E.clickPenguin(pt);
+    const pat = (pt, how) => E.clickPenguin(pt, false, how);
     const stopHold = () => { if (active) { clearTimeout(active.holdTimer); clearInterval(active.holdTimer); } };
     const startHold = () => {
       stopHold();
+      if (!S().settings.holdToPat) return;
       active.holdTimer = setTimeout(() => {
         if (!active) return;
         active.holdTimer = setInterval(() => {
           if (!active) return;
           active.lastPat = performance.now();
-          pat({ x: active.x, y: active.y });
+          pat({ x: active.x, y: active.y }, "hold");
         }, HOLD_EVERY);
       }, HOLD_DELAY);
     };
@@ -1359,31 +1377,38 @@
       if (!active || (e && e.pointerId !== active.id)) return;
       stopHold();
       active = null;
-      peng.classList.remove("patting");
+      peng.classList.remove("patting", "rub-l", "rub-r");
     };
     peng.addEventListener("pointerdown", e => {
       if (e.button !== 0 || active) return;
       active = { id: e.pointerId, x: e.clientX, y: e.clientY, travel: 0, lastPat: performance.now(), holdTimer: 0 };
       try { peng.setPointerCapture(e.pointerId); } catch (_) { /* not supported */ }
       peng.classList.add("patting");
-      pat({ x: e.clientX, y: e.clientY });
+      pat({ x: e.clientX, y: e.clientY }, "tap");
       startHold();
     });
     peng.addEventListener("pointermove", e => {
       if (!active || e.pointerId !== active.id) return;
-      active.travel += Math.hypot(e.clientX - active.x, e.clientY - active.y);
+      const dx = e.clientX - active.x;
+      active.travel += Math.hypot(dx, e.clientY - active.y);
       active.x = e.clientX; active.y = e.clientY;
+      // The mitten tilts the way you're rubbing
+      if (Math.abs(dx) > 2) {
+        peng.classList.toggle("rub-r", dx > 0);
+        peng.classList.toggle("rub-l", dx < 0);
+      }
       if (active.travel < STROKE_PX) return;
       startHold();             // moving resets the hold, so a rub never doubles up with it
       const t = performance.now();
       if (t - active.lastPat < STROKE_GAP) return;
       active.travel = 0;
       active.lastPat = t;
-      pat({ x: e.clientX, y: e.clientY });
+      if (!peng.classList.contains("rub-l") && !peng.classList.contains("rub-r")) peng.classList.add("rub-r");   // up-and-down rubs tilt too
+      pat({ x: e.clientX, y: e.clientY }, "rub");
     });
     ["pointerup", "pointercancel", "lostpointercapture"].forEach(ev => peng.addEventListener(ev, end));
     // Pointer presses already patted on pointerdown; only keyboard clicks (detail 0) pat here
-    peng.addEventListener("click", e => { if (e.detail === 0) pat(pointFrom(e, peng)); });
+    peng.addEventListener("click", e => { if (e.detail === 0) pat(pointFrom(e, peng), "tap"); });
   }
 
   function init() {
@@ -1444,7 +1469,7 @@
 
   PI.ui = {
     init, tick, slowTick, openModal, toast, selectTab, spawnGolden, bumpCounter, migrateFlow,
-    cycleBuyAmount, refreshStructure, renderTab, closeSheet, chatNow: startChat, workNow: startWork, propNow: propAct,
+    cycleBuyAmount, refreshStructure, renderTab, closeSheet, updateBadges, renderNextGoal, chatNow: startChat, workNow: startWork, propNow: propAct,
     buildingRow: id => els[id] && els[id].root,
     get modalOpen() { return modals.length > 0; },
     get currentTab() { return currentTab; },

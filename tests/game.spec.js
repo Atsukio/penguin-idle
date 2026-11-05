@@ -81,6 +81,102 @@ test("rubbing the penguin pats it, holding keeps patting, and the keyboard still
   expect(await clicks()).toBe(held + 1);
 });
 
+test("hold-to-pat can be switched off, rubs are counted, and the next goal is shown", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  const clicks = () => state(page, () => window.penguinIdle.state.stats.clicks);
+  await page.locator('[data-tab="stats"]').click();
+  await page.locator("#optHoldToPat").uncheck();
+  expect(await state(page, () => window.penguinIdle.state.settings.holdToPat)).toBe(false);
+  await page.locator('[data-tab="colony"]').click();
+  const box = await page.locator("#bigPenguin").boundingBox();
+  const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.waitForTimeout(1100);
+  await page.mouse.up();
+  expect(await clicks()).toBe(1);   // just the press
+  // Rubbing still works, and is counted on its own
+  await page.mouse.down();
+  for (let i = 0; i < 4; i++) { await page.mouse.move(cx + (i % 2 ? -50 : 50), cy, { steps: 4 }); await page.waitForTimeout(90); }
+  await page.mouse.up();
+  const rubs = await state(page, () => window.penguinIdle.state.stats.rubPats);
+  expect(rubs).toBeGreaterThanOrEqual(3);
+  expect(await clicks()).toBe(2 + rubs);
+  // What you're saving up for: the first Sleepy Chick
+  await expect(page.locator("#nextGoal")).toContainText(/Next: .+ in 🐟 \d+/);
+});
+
+test("What's new: new players are up to date, returning players get the news once", async ({ browser }) => {
+  // A brand-new colony has nothing to catch up on
+  const fresh = await browser.newPage();
+  await fresh.goto("/");
+  await expect(fresh.locator("#newsBadge")).toBeHidden();
+  expect(await fresh.evaluate(() => window.penguinIdle.state.seenVersion)).toBe(await fresh.evaluate(() => PI.data.GAME_VERSION));
+  await fresh.close();
+
+  // A save from before What's new existed: a toast, a dot on Settings, and the page lists the releases
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+  await seed(page, { version: 4, fish: 10, runFish: 10, lifetimeFish: 10, buildings: {}, lastTick: Date.now() });
+  await page.goto("/");
+  await expect(page.locator(".toast", { hasText: "The colony has news" })).toBeVisible({ timeout: 5000 });
+  await expect(page.locator("#newsBadge")).toBeVisible();
+  await closeModals(page);
+  await page.locator('[data-tab="stats"]').click();
+  await page.locator("#whatsNewBtn").click();
+  const modal = page.locator(".modal", { hasText: "What's new" });
+  await expect(modal).toBeVisible();
+  await expect(modal.locator("details.news")).toHaveCount(await page.evaluate(() => PI.data.CHANGELOG.length));
+  await expect(modal.locator("details.news").first()).toHaveAttribute("open", "");
+  await expect(modal.locator(".pill", { hasText: "New" })).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#newsBadge")).toBeHidden();
+  // Remembered after a reload
+  await page.reload();
+  await page.waitForTimeout(2000);
+  await expect(page.locator("#newsBadge")).toBeHidden();
+  await expect(page.locator(".toast", { hasText: "The colony has news" })).toHaveCount(0);
+  await ctx.close();
+});
+
+test("move to another device: the link carries a copy and asks before replacing", async ({ page, browser }) => {
+  await page.goto("/");
+  await closeModals(page);
+  await page.evaluate(() => { const g = window.penguinIdle; g.state.fish = 123456; g.state.feathersEarned = 7; g.state.buildings.fisher = 9; g.state.names = ["Pip"]; g.engine.recompute(); });
+  await page.locator('[data-tab="stats"]').click();
+  await page.locator("#moveBtn").click();
+  const modal = page.locator(".modal", { hasText: "Move to another device" });
+  await expect(modal.locator(".move-qr svg")).toBeVisible();
+  const link = await modal.locator("#moveLink").inputValue();
+  expect(link).toMatch(/#move=z[A-Za-z0-9_-]+$/);
+  expect(link.length).toBeLessThan(2900);   // fits in a QR code
+
+  // The other device: its own small colony, then the link
+  const ctx = await browser.newContext();
+  const other = await ctx.newPage();
+  await other.goto("/");
+  await closeModals(other);
+  await other.evaluate(() => { window.penguinIdle.state.fish = 5; window.penguinIdle.state.settings.volume = 0.2; });
+  await other.goto(link.replace(/^https?:\/\/[^/]+/, ""));
+  const ask = other.locator(".modal", { hasText: "Bring this colony here?" });
+  await expect(ask).toBeVisible();
+  await expect(ask).toContainText("123K fish");
+  // Saying no keeps this device's colony, and the link is gone from the address bar
+  await ask.getByRole("button", { name: "Keep the one here" }).click();
+  expect(await other.evaluate(() => window.penguinIdle.state.fish)).toBeLessThan(1000);
+  expect(await other.evaluate(() => location.hash)).toBe("");
+  // Yes brings it over, keeping this device's own settings
+  await other.goto(link.replace(/^https?:\/\/[^/]+/, ""));
+  await other.locator(".modal").getByRole("button", { name: "Bring it here" }).click();
+  const got = await other.evaluate(() => { const s = window.penguinIdle.state; return { fish: s.fish >= 123456, feathers: s.feathersEarned, fisher: s.buildings.fisher, names: s.names, volume: s.settings.volume }; });
+  expect(got).toEqual({ fish: true, feathers: 7, fisher: 9, names: ["Pip"], volume: 0.2 });
+  // A broken link says so instead of loading anything
+  await other.goto("/#move=zNOTAREALSAVE");
+  await expect(other.locator(".modal", { hasText: "That link didn't work" })).toBeVisible();
+  await ctx.close();
+});
+
 test("hovering with x10 shows the row's new count and output, and the preview matches the real purchase", async ({ page }) => {
   await page.goto("/");
   await closeModals(page);
@@ -261,9 +357,11 @@ test("the colony works: residents fetch fish to the basket, props make fish, and
   test.setTimeout(60000);
   expect(await page.evaluate(() => PI.ui.workNow())).toBe(true);
   const worker = await page.locator("#waddlers [data-job]").first().elementHandle();
+  // Note the moment the worker is free again: it can pick up its next job before a poll would see the gap
+  await worker.evaluate(w => new MutationObserver(() => { if (!w.dataset.job) w.dataset.wasFree = "1"; }).observe(w, { attributes: true, attributeFilter: ["data-job"] }));
   await expect(page.locator("#waddlers .w-held")).toBeAttached({ timeout: 20000 });  // holding a rod or a fish
   await expect(page.locator("#colony .catch-pop")).toBeAttached({ timeout: 30000 }); // delivered: "+N" over the basket
-  await expect.poll(() => worker.evaluate(w => w.dataset.job || ""), { timeout: 15000 }).toBe("");   // the first worker goes back to wandering
+  await expect.poll(() => worker.evaluate(w => w.dataset.wasFree || ""), { timeout: 15000 }).toBe("1");   // the first worker goes back to wandering
   // Spending fish empties the basket; reduce motion keeps everyone still
   await page.evaluate(() => { const g = window.penguinIdle; for (const id in g.state.buildings) g.state.buildings[id] = 0; g.state.fish = 0; g.state.settings.reduceMotion = true; g.engine.recompute(); });
   await expect(page.locator("#fishPile span")).toHaveCount(0, { timeout: 3000 });

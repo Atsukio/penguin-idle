@@ -1,6 +1,6 @@
 {
   "name": "penguin-idle",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "private": true,
   "description": "A cozy penguin idle game for the browser. No build step, hosted on GitHub Pages.",
   "license": "MIT",

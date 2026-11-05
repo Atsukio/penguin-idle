@@ -44,6 +44,7 @@
       </button>
       <div class="say-bubble hidden" id="penguinSay" role="status" aria-live="polite"></div>
       <div class="click-info">+<span id="clickPower">1</span> fish per pat</div>
+      <div class="next-goal hidden" id="nextGoal" aria-live="off"></div>
       <div class="colony" id="colony" aria-hidden="true">
         <div class="lights" id="lights"></div>
         <div class="aurora" id="aurora"></div>
@@ -72,7 +73,7 @@
         <button class="tab" role="tab" id="tabbtn-heritage" aria-controls="tab-heritage" aria-selected="false" tabindex="-1" data-tab="heritage">Migration <span id="migrateBadge" class="pill hidden" aria-label="good time to migrate">!</span></button>
         <button class="tab" role="tab" id="tabbtn-home" aria-controls="tab-home" aria-selected="false" tabindex="-1" data-tab="home">Home <span id="homeBadge" class="pill hidden"></span></button>
         <button class="tab" role="tab" id="tabbtn-achievements" aria-controls="tab-achievements" aria-selected="false" tabindex="-1" data-tab="achievements">Memories <span id="achCount" class="pill">0</span></button>
-        <button class="tab" role="tab" id="tabbtn-stats" aria-controls="tab-stats" aria-selected="false" tabindex="-1" data-tab="stats">Settings</button>
+        <button class="tab" role="tab" id="tabbtn-stats" aria-controls="tab-stats" aria-selected="false" tabindex="-1" data-tab="stats">Settings <span id="newsBadge" class="pill news-dot hidden" aria-label="news">•</span></button>
       </div>
 
       <div class="tab-body" role="tabpanel" id="tab-colony" aria-labelledby="tabbtn-colony">
@@ -155,7 +156,10 @@
       </div>
 
       <div class="tab-body hidden" role="tabpanel" id="tab-stats" aria-labelledby="tabbtn-stats">
-        <h2>Settings</h2>
+        <div class="section-head">
+          <h2>Settings</h2>
+          <button class="btn small" id="whatsNewBtn">✨ What's new</button>
+        </div>
         <div class="settings">
           <label class="check"><input type="checkbox" id="optSound"> Sound effects</label>
           <label class="range">Volume <input type="range" id="optVolume" min="0" max="1" step="0.05"></label>
@@ -166,6 +170,7 @@
           <label class="check"><input type="checkbox" id="optReduceMotion"> Reduce motion</label>
           <label class="check"><input type="checkbox" id="optParticles"> Snowfall, flying fish &amp; floating numbers</label>
           <label class="check"><input type="checkbox" id="optCursor"> Cozy cursor (mittens instead of the system pointer)</label>
+          <label class="check"><input type="checkbox" id="optHoldToPat"> Hold the penguin to keep patting</label>
           <label class="check"><input type="checkbox" id="optScientific"> Scientific notation</label>
           <label class="range">Text size
             <select id="optTextSize">
@@ -180,7 +185,7 @@
 
         <h2>Keyboard shortcuts</h2>
         <dl class="stats hotkeys">
-          <dt><kbd>Space</kbd> / <kbd>Enter</kbd></dt><dd>Pat the penguin (when it's focused)</dd>
+          <dt><kbd>Space</kbd> / <kbd>Enter</kbd></dt><dd>Pat the penguin (when it's focused). With a mouse or finger you can also rub it or press and hold.</dd>
           <dt><kbd>P</kbd></dt><dd>Focus the penguin</dd>
           <dt><kbd>1</kbd>–<kbd>6</kbd></dt><dd>Switch tabs</dd>
           <dt><kbd>B</kbd></dt><dd>Buy all affordable upgrades</dd>
@@ -201,6 +206,7 @@
           <button class="btn" id="exportBtn">Export save</button>
           <button class="btn" id="downloadBtn">Download save</button>
           <button class="btn" id="importBtn">Import save</button>
+          <button class="btn" id="moveBtn">📱 Move to another device</button>
           <button class="btn danger" id="resetBtn">Hard reset</button>
         </div>
         <label for="saveText" class="visually-hidden">Save text</label>
@@ -218,6 +224,7 @@
 
   <script src="src/data.js"></script>
   <script src="src/engine.js"></script>
+  <script src="src/qr.js"></script>
   <script src="src/fx.js"></script>
   <script src="src/penguin.js"></script>
   <script src="src/ui.js"></script>

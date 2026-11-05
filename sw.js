@@ -1,11 +1,13 @@
 /* Penguin Idle service worker: makes the game installable and playable offline.
  * Strategy: stale-while-revalidate. Serve the cached copy instantly, fetch a fresh one in the
- * background, and use it next time. Bump CACHE when the list of files changes.
+ * background, and use it next time.
+ * CACHE always matches the newest What's new entry (CHANGELOG in src/data.js); tools/check-data.js
+ * checks this in CI, so every release reaches installed copies.
  */
-const CACHE = "penguin-idle-v5";
+const CACHE = "penguin-idle-v4.1";
 const FILES = [
   "./", "index.html", "style.css", "manifest.webmanifest",
-  "src/data.js", "src/engine.js", "src/fx.js", "src/penguin.js", "src/ui.js", "src/main.js",
+  "src/data.js", "src/engine.js", "src/qr.js", "src/fx.js", "src/penguin.js", "src/ui.js", "src/main.js",
   "fonts/fonts.css", "fonts/fredoka-latin.woff2", "fonts/nunito-latin.woff2",
   "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png",
 ];

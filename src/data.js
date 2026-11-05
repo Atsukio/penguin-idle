@@ -33,6 +33,61 @@
 
   const SAVE_KEY = "penguinIdleSave_v1";   // storage key never changes; the schema version lives inside the save
 
+  // ---------- What's new: shown in the game (Settings → What's new), newest first ----------
+  // Written for players, not developers. Every release adds an entry at the top, and the service
+  // worker's CACHE must be "penguin-idle-v<version>" (tools/check-data.js fails CI otherwise), so
+  // installed copies always pick up the update.
+  const CHANGELOG = [
+    { version: "4.1", date: "2026-11-05", title: "News from the colony", notes: [
+      "There's a What's new page in Settings, and a little note when the game updates.",
+      "Rubbing the penguin makes a soft stroking sound, and the mitten tilts as you rub. There are two new memories for it.",
+      "Don't want hold-to-pat? Switch it off in Settings.",
+      "A hint under the penguin shows what you're saving up for next and roughly how long it'll take.",
+      "Coming back after a while? Your colony friends tell you what they got up to.",
+      "Move your colony to another device with a link or a QR code (Settings → Save).",
+      "The weather eases off on its own if your device is struggling to keep up.",
+    ] },
+    { version: "4.0", date: "2026-11-05", title: "Belly rubs", notes: [
+      "Rub the penguin side to side or up and down to pat it, or press and hold.",
+      "Colony prices sit next to the big count on the right, and Workshop prices sit next to their level.",
+    ] },
+    { version: "3.4", date: "2026-11-05", title: "Friends by name", notes: [
+      "Name up to six residents in the Home tab. They wear name tags and get cheered on by name.",
+      "A 🎵 button in the top bar (or Shift+M) mutes or unmutes the music.",
+      "The music follows the scene: each shore has its own flavour, nights are slower, and Midwinter brings sleigh bells.",
+      "Hover a prop in the scene (or tap it on a phone) to see what it earns.",
+      "Six new memories.",
+    ] },
+    { version: "3.3", date: "2026-11-05", title: "Lofi by the fire", notes: [
+      "Calm lofi music, made live in your browser, with its own volume slider.",
+      "Cozy cursors (a knitted glove and a red mitten for patting) and warm, rounded scrollbars.",
+    ] },
+    { version: "3.2", date: "2026-11-05", title: "A living colony", notes: [
+      "Every shore has its own scenery and weather.",
+      "Residents fish, visit the huts and carry the catch to the basket by the fire.",
+      "Residents stop for little chats, and the big penguin has plenty to say.",
+    ] },
+    { version: "3.1", date: "2026-11-05", title: "Nothing missed", notes: [
+      "Time with your computer asleep now earns offline rewards, and background tabs earn at full rate.",
+      "With x10, x100 or Max selected, hovering a colony row shows what you'd have after buying.",
+    ] },
+    { version: "3.0", date: "2026-11-05", title: "Helpers and new shores", notes: [
+      "Hire helpers with feathers to buy, research and catch golden fish for you.",
+      "Each migration lands on a shore with its own twist.",
+      "Daily penguin letters, a wardrobe for the big penguin and real-date seasonal events.",
+      "Install the game as an app and play offline.",
+    ] },
+    { version: "2.0", date: "2026-11-04", title: "Heirlooms and the Workshop", notes: [
+      "The Heirloom Tree: three branches of permanent upgrades, with free refunds.",
+      "The Workshop: research projects bought with fish.",
+      "Big Catches, synergy upgrades and new memories.",
+    ] },
+    { version: "1.0", date: "2026-11-04", title: "Hello, colony", notes: [
+      "Pat the penguin, grow a fishing colony, catch golden fish and set off on the Great Migration.",
+    ] },
+  ];
+  const GAME_VERSION = CHANGELOG[0].version;
+
   const COST_GROWTH = 1.15;
   const MILESTONES = [10, 25, 50, 100, 150, 200, 250, 300, 400, 500, 600, 700, 800, 900, 1000];
   const FEATHER_BONUS = 0.02;      // per feather ever earned
@@ -512,12 +567,14 @@
   ach("name_1", "Friends by Name", "Give a resident a name.", s => (s.names || []).some(Boolean), "📛");
   ach("name_all", "Everyone Has a Name", "Name six residents.", s => (s.names || []).filter(Boolean).length >= 6, "🏷️");
   ach("music_hour", "Lofi Listener", "Listen to the colony's music for an hour.", s => s.stats.musicSeconds >= 3600, "🎧");
+  ach("rub_100", "Belly Rubs", "Pat the penguin 100 times by rubbing it.", s => s.stats.rubPats >= 100, "🫳");
+  ach("rub_5000", "Belly Rub Expert", "Pat the penguin 5,000 times by rubbing it.", s => s.stats.rubPats >= 5000, "💆");
 
   PI.fmt = fmt;
   PI.fmtTime = fmtTime;
   PI.fmtOptions = fmtOptions;
   PI.data = {
-    SAVE_KEY, SAVE_VERSION: 4, COST_GROWTH, MILESTONES, FEATHER_BONUS, ACH_BONUS, FEATHER_SCALE, SUFFIXES, TEXT_SIZES,
+    SAVE_KEY, SAVE_VERSION: 4, CHANGELOG, GAME_VERSION, COST_GROWTH, MILESTONES, FEATHER_BONUS, ACH_BONUS, FEATHER_SCALE, SUFFIXES, TEXT_SIZES,
     BUILDINGS, B_BY_ID, TIER_REQS, TIER_COSTS, TIER_NUMERALS, BUILDING_UPGRADES,
     UPGRADES, UP_BY_ID, SYNERGIES, RESEARCH, R_BY_ID, TREE, H_BY_ID, BRANCH_NAMES, totalColony,
     ACHIEVEMENTS, HELPERS, HELPER_BY_ID, SHORES, SHORE_BY_ID, SEASONS, SEASON_BY_ID,

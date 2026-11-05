@@ -10,6 +10,7 @@
     BUILDINGS, B_BY_ID, UPGRADES, UP_BY_ID, RESEARCH, R_BY_ID, TREE, H_BY_ID, ACHIEVEMENTS,
     HELPERS, HELPER_BY_ID, SHORES, SHORE_BY_ID, SEASONS, SEASON_BY_ID, COSMETICS, LETTER_TYPES, LETTER_SENDERS,
     MILESTONES, COST_GROWTH, FEATHER_SCALE, FEATHER_BONUS, ACH_BONUS, SAVE_KEY, SAVE_VERSION, TEXT_SIZES, totalColony,
+    GAME_VERSION,
   } = D;
 
   const MAX = 1e300;   // hard ceiling so numbers never overflow to Infinity (which JSON would save as null)
@@ -34,7 +35,7 @@
     return {
       particles: true, scientific: false,
       sound: true, volume: 0.5, ambience: false, music: true, musicVolume: 0.5,
-      shake: 0.6, reduceMotion: prefersReducedMotion, textSize: 1, cozyCursor: true,
+      shake: 0.6, reduceMotion: prefersReducedMotion, textSize: 1, cozyCursor: true, holdToPat: true,
     };
   }
 
@@ -42,7 +43,7 @@
     return {
       clicks: 0, clickFish: 0, goldenClicks: 0, bigCatches: 0, longestAway: 0,
       buildingsBought: 0, upgradesBought: 0, researchBought: 0, lettersClaimed: 0, outfitChanges: 0, seasonalCatches: 0,
-      deliveries: 0, musicSeconds: 0, propLooks: 0,
+      deliveries: 0, musicSeconds: 0, propLooks: 0, rubPats: 0,
       startedAt: now(), runStartedAt: now(),
     };
   }
@@ -67,6 +68,7 @@
       stats: freshStats(),
       settings: defaultSettings(),
       lastTick: now(),
+      seenVersion: GAME_VERSION,   // the newest What's new entry this player has seen; new players start up to date
     };
   }
 
@@ -197,6 +199,23 @@
   const pendingFeathers = () => Math.max(0, featherTotalFor(S.lifetimeFish) - S.feathersEarned);
   const nextFeatherAt = () => Math.pow((featherTotalFor(S.lifetimeFish) + 1) / M.featherGain, 3) * FEATHER_SCALE;
   const availableUpgrades = () => UPGRADES.filter(u => !has(u.id) && u.unlocked(S)).sort((a, b) => upgradeCost(a) - upgradeCost(b));
+  // The cheapest colony member or upgrade you can't afford yet: what you're saving up for
+  function nextGoal() {
+    const opts = [];
+    let mystery = false;   // the next undiscovered member stays a surprise
+    BUILDINGS.forEach((b, i) => {
+      const cost = costOf(b, S.buildings[b.id], 1);
+      if (buildingVisible(b, i)) opts.push({ kind: "building", id: b.id, icon: b.icon, name: b.name, cost });
+      else if (!mystery) { mystery = true; opts.push({ kind: "building", id: b.id, icon: "❔", name: "a new colony member", cost }); }
+    });
+    availableUpgrades().slice(0, 12).forEach(u => opts.push({ kind: "upgrade", id: u.id, icon: u.icon, name: u.name, cost: upgradeCost(u) }));
+    const waiting = opts.filter(o => o.cost > S.fish).sort((a, b) => a.cost - b.cost);
+    const goal = waiting[0];
+    if (!goal) return null;
+    const need = goal.cost - S.fish, fps = fishPerSecond();
+    return { ...goal, need, secs: fps > 0 ? need / fps : null };
+  }
+
   const availableShores = () => SHORES.filter(sh => S.migrations + 1 >= sh.unlockAt);
 
   // =====================================================================
@@ -210,7 +229,8 @@
     S.lifetimeFish = Math.min(MAX, S.lifetimeFish + n);
   }
 
-  function clickPenguin(pos, auto = false) {
+  // how: "tap" (click, key or press), "rub" (stroking it) or "hold" (pressing and holding)
+  function clickPenguin(pos, auto = false, how = "tap") {
     let p = clickPower();
     const crit = Math.random() < M.critChance;   // Big Catch
     if (crit) { p *= M.critMult; S.stats.bigCatches++; }
@@ -218,7 +238,8 @@
     if (auto) return p;
     S.stats.clicks++;
     S.stats.clickFish = Math.min(MAX, S.stats.clickFish + p);
-    bus.emit("click", { amount: p, x: pos && pos.x, y: pos && pos.y, crit });
+    if (how === "rub") S.stats.rubPats++;
+    bus.emit("click", { amount: p, x: pos && pos.x, y: pos && pos.y, crit, how });
     return p;
   }
 
@@ -621,6 +642,18 @@
     return `${b64}.${hash(b64)}`;
   }
 
+  // Moving to another device: the save as plain JSON without the production graph, to keep links and QR codes short
+  function transferJSON() {
+    const { buffs, history, ...data } = S;
+    return JSON.stringify({ ...data, version: SAVE_VERSION });
+  }
+  function fromTransferJSON(json) {
+    let data;
+    try { data = JSON.parse(json); } catch (e) { throw new SaveError("corrupt", "This link's save couldn't be read."); }
+    if (!data || typeof data !== "object" || Array.isArray(data)) throw new SaveError("corrupt", "This link's save couldn't be read.");
+    return validate(migrateSave(data));
+  }
+
   function decodeSave(str) {
     str = String(str || "").trim();
     if (!str) throw new SaveError("empty", "There's no save text.");
@@ -697,6 +730,8 @@
     s.settings.shake = Math.min(1, Math.max(0, s.settings.shake));
     if (!TEXT_SIZES.includes(s.settings.textSize)) s.settings.textSize = 1;
     s.lastTick = num(data.lastTick) || now();
+    // Saves from before What's new existed have no seenVersion: those players get the news too
+    s.seenVersion = typeof data.seenVersion === "string" ? data.seenVersion.slice(0, 16) : "";
     return s;
   }
 
@@ -781,7 +816,7 @@
     goldenDelay, goldenEffect,
     dayKey, ensureLetters, letterProgress, letterReward, claimLetter, claimLetterBonus,
     checkAchievements, runHelpers, tick, applyOffline,
-    encodeSave, decodeSave, save, load, SaveError,
+    encodeSave, decodeSave, save, load, SaveError, transferJSON, fromTransferJSON, nextGoal,
   });
   PI.engine = E;
   PI.bus = bus;

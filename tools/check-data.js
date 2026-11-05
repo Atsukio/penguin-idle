@@ -49,6 +49,24 @@ D.SEASONS.forEach(s => {
 });
 check(D.SHORES[0].id === "home" && D.SHORES[0].unlockAt === 0, "the first shore must be an always-open Home Ice");
 
+// Releases: What's new, the service worker cache and package.json all name the same version
+const fs = require("fs");
+const read = f => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+const versions = D.CHANGELOG.map(c => c.version);
+check(D.CHANGELOG.length > 0 && D.GAME_VERSION === versions[0], "GAME_VERSION must be the newest CHANGELOG entry");
+check(!dupes(versions).length, `CHANGELOG has duplicate versions: ${dupes(versions).join(", ")}`);
+D.CHANGELOG.forEach(c => check(/^\d+\.\d+(\.\d+)?$/.test(c.version) && /^\d{4}-\d{2}-\d{2}$/.test(c.date) && c.title && c.notes.length > 0 && c.notes.every(n => typeof n === "string" && n.length > 0),
+  `CHANGELOG entry ${c.version} needs a version, a YYYY-MM-DD date, a title and notes`));
+const vnum = v => v.split(".").map(Number).reduce((a, x, i) => a + x * Math.pow(1000, 2 - i), 0);
+check(versions.every((v, i) => i === 0 || vnum(versions[i - 1]) > vnum(v)), "CHANGELOG must be newest first");
+const sw = read("sw.js");
+const cache = (sw.match(/const CACHE = "([^"]+)"/) || [])[1];
+check(cache === `penguin-idle-v${D.GAME_VERSION}`, `sw.js CACHE is "${cache}" but must be "penguin-idle-v${D.GAME_VERSION}" (add a What's new entry and bump CACHE together)`);
+const pkg = JSON.parse(read("package.json")).version;
+check(pkg.replace(/\.0$/, "") === D.GAME_VERSION, `package.json version ${pkg} doesn't match What's new ${D.GAME_VERSION}`);
+// Every script the page loads is cached for offline play
+[...read("index.html").matchAll(/<script src="([^"]+)"/g)].forEach(m => check(sw.includes(`"${m[1]}"`), `sw.js doesn't cache ${m[1]}, so the game won't load offline`));
+
 // Every tree node and research text renders for each level without throwing
 D.TREE.forEach(n => { for (let L = 1; L <= n.max; L++) check(typeof n.text(L) === "string", `tree node ${n.id} text fails at level ${L}`); });
 
@@ -56,5 +74,5 @@ if (problems.length) {
   console.error(`Data check FAILED (${problems.length}):\n  - ${problems.join("\n  - ")}`);
   process.exit(1);
 }
-console.log(`Data check passed: ${D.BUILDINGS.length} colony members, ${D.UPGRADES.length} upgrades, ${D.RESEARCH.length} research, ` +
+console.log(`Data check passed: version ${D.GAME_VERSION}, ${D.BUILDINGS.length} colony members, ${D.UPGRADES.length} upgrades, ${D.RESEARCH.length} research, ` +
   `${D.TREE.length} heirlooms, ${D.HELPERS.length} helpers, ${D.SHORES.length} shores, ${D.ACHIEVEMENTS.length} memories, all icons unique.`);

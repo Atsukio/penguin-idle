@@ -68,9 +68,20 @@
     weather: "snow",
     setWeather(id) { this.weather = WEATHER[id] ? id : "snow"; this.start(); },
     snowWanted() { return S().settings.particles && motionOK(); },
+    // On a device that can't keep up, the weather eases off (down to a quarter) and comes back when it recovers.
+    // Only the weather: pats, purchases and golden fish keep their full feedback.
+    weatherScale: 1, frameAvg: 1 / 60, perfTimer: 0,
+    watchPerf(dt) {
+      this.frameAvg += (dt - this.frameAvg) * 0.05;
+      this.perfTimer += dt;
+      if (this.perfTimer < 2) return;
+      this.perfTimer = 0;
+      if (this.frameAvg > 1 / 35) this.weatherScale = Math.max(0.25, this.weatherScale * 0.7);
+      else if (this.frameAvg < 1 / 50) this.weatherScale = Math.min(1, this.weatherScale + 0.1);
+    },
     spawnWeather(dt) {
       const w = WEATHER[this.weather];
-      this.snowAcc += dt * w.rate;
+      this.snowAcc += dt * w.rate * this.weatherScale;
       while (this.snowAcc >= 1) { this.snowAcc -= 1; this.get(w.make()); }
     },
 
@@ -81,6 +92,7 @@
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, innerWidth, innerHeight);
 
+      this.watchPerf(dt);
       if (this.snowWanted()) this.spawnWeather(dt);
 
       for (let i = this.list.length - 1; i >= 0; i--) {
@@ -253,6 +265,21 @@
       const t = c.currentTime + 0.01;
       const P = [523.25, 587.33, 659.25, 783.99, 880, 1046.5, 1174.66, 1318.51];   // pentatonic-ish, always consonant
       switch (name) {
+        case "stroke": {   // a soft, low swish for rubbing: a gentle upward glide instead of a bright pop
+          const now = performance.now();
+          if (now - this.lastPop < 90) return;
+          this.lastPop = now;
+          const o = c.createOscillator(), g = c.createGain(), f = 220 + Math.random() * 60;
+          o.type = "sine";
+          o.frequency.setValueAtTime(f, t);
+          o.frequency.exponentialRampToValueAtTime(f * 1.45, t + 0.16);
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(0.07, t + 0.04);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+          o.connect(g).connect(this.master);
+          o.start(t); o.stop(t + 0.26);
+          break;
+        }
         case "pop": {
           const now = performance.now();
           if (now - this.lastPop < 70) return;   // fast patting shouldn't become a drone
@@ -598,7 +625,7 @@
         numberPop(`Big Catch! +${PI.fmt(d.amount)}`, d.x, d.y, true);
         burst(d.x, d.y, 5, ["🐟", "🐡", "✨"]);
       } else {
-        Sound.play("pop");
+        Sound.play(d.how === "rub" ? "stroke" : "pop");
         numberPop(`+${PI.fmt(d.amount)}`, d.x, d.y);
       }
       fishToCounter(d.x, d.y);
