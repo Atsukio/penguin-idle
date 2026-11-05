@@ -231,7 +231,7 @@ test("cozy cursor: an arrow, a glove on buttons and a mitten on the penguin, and
   await closeModals(page);
   const cursorOf = sel => page.evaluate(s => getComputedStyle(document.querySelector(s)).cursor, sel);
   expect(await cursorOf("body")).toMatch(/^url\("data:image\/svg\+xml.+\) 5 4, auto$/);
-  expect(await cursorOf("#tabbtn-colony")).toMatch(/\) 12 3, pointer$/);
+  expect(await cursorOf("#tabbtn-colony")).toMatch(/\) 12 7, pointer$/);
   expect(await cursorOf("#bigPenguin")).toMatch(/\) 17 13, pointer$/);
   await page.locator("#tabbtn-stats").click();
   await page.locator("#optCursor").uncheck();
