@@ -141,8 +141,39 @@
   let lastFrame = performance.now(), uiTimer = 0, slowTimer = 0, saveTimer = 0, minuteTimer = 0;
   let nextGolden = 0;
 
+  // Real time passed since the last tick. Browsers run hidden tabs' timers only about once a minute, and
+  // nothing runs at all while the computer sleeps or the browser freezes the tab. A short gap is a throttled
+  // background tab, so it counts at full rate. A long one means the game wasn't running, so it counts as
+  // time away and gets offline rewards with a welcome-home note.
+  const ASLEEP_AFTER = 120;   // seconds
+  function catchUp() {
+    const away = (Date.now() - S().lastTick) / 1000;
+    if (away > ASLEEP_AFTER) {
+      const offline = E.applyOffline();
+      if (offline) welcomeHome(offline);
+      E.save();
+    } else if (away > 1) {
+      E.gain(E.fishPerSecond(false) * away);
+      S().lastTick = Date.now();
+    }
+    lastFrame = performance.now();
+  }
+
+  function welcomeHome(offline) {
+    if (welcomeModal && document.contains(welcomeModal.wrap)) welcomeModal.cancel();   // after several sleeps, show only the latest
+    welcomeModal = ui().openModal({
+      title: "Welcome home!",
+      body: `<p>You were away for <b>${PI.fmtTime(offline.away)}</b>. The colony kept the fire going and fished at ${Math.round(offline.eff * 100)}% pace,
+             catching <b>🐟 ${fmt(offline.earned)}</b>.</p>
+             ${offline.away > offline.cap ? `<p class="muted">Time away counts for up to ${offline.cap / 3600} hours.</p>` : ""}`,
+      actions: [{ label: "Cozy!", primary: true, cancel: true }],
+    });
+  }
+  let welcomeModal = null;
+
   // Timer-driven (not requestAnimationFrame) so the colony keeps fishing in background tabs
   function frame() {
+    if (Date.now() - S().lastTick > 1000) catchUp();
     const now = performance.now();
     const dt = Math.min(5, (now - lastFrame) / 1000);
     lastFrame = now;
@@ -160,9 +191,7 @@
 
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) { E.save(); return; }
-    const away = (Date.now() - S().lastTick) / 1000;
-    if (away > 2) { E.gain(E.fishPerSecond(false) * away); S().lastTick = Date.now(); }   // the tab was still open: full rate
-    lastFrame = performance.now();
+    catchUp();
   });
   window.addEventListener("beforeunload", () => E.save());
 
@@ -197,13 +226,7 @@
     $("bigPenguin").focus({ preventScroll: true, focusVisible: false });
 
     if (loadProblem) ui().openModal({ title: loadProblem.title, body: loadProblem.body, actions: [{ label: "Okay", primary: true, cancel: true }] });
-    if (offline) ui().openModal({
-      title: "Welcome home!",
-      body: `<p>You were away for <b>${PI.fmtTime(offline.away)}</b>. The colony kept the fire going and fished at ${Math.round(offline.eff * 100)}% pace,
-             catching <b>🐟 ${fmt(offline.earned)}</b>.</p>
-             ${offline.away > offline.cap ? `<p class="muted">Time away counts for up to ${offline.cap / 3600} hours.</p>` : ""}`,
-      actions: [{ label: "Cozy!", primary: true, cancel: true }],
-    });
+    if (offline) welcomeHome(offline);
 
     nextGolden = Date.now() + 60000 + Math.random() * 90000;
     lastFrame = performance.now();

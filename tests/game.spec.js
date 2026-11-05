@@ -211,3 +211,31 @@ test("@touch layout fits a phone screen without sideways scrolling", async ({ pa
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
 });
+
+test("waking the computer from sleep gives offline rewards", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  // Simulate three hours asleep: the page stayed open but no timers ran
+  const before = await state(page, () => {
+    const g = window.penguinIdle; g.state.buildings.chick = 10; g.engine.recompute();
+    g.state.fish = 0; g.state.lastTick = Date.now() - 3 * 3600e3;
+    return g.engine.fishPerSecond(false);
+  });
+  await expect(page.locator(".modal h2")).toHaveText("Welcome home!");
+  const fish = await state(page, () => window.penguinIdle.state.fish);
+  expect(fish).toBeGreaterThan(before * 3 * 3600 * 0.25 * 0.95);   // 25% pace for the time away
+  expect(await state(page, () => window.penguinIdle.state.stats.longestAway)).toBeGreaterThan(3 * 3600 - 5);
+});
+
+test("a throttled background tab still earns at full rate", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  // Hidden tabs' timers fire about once a minute: a 60-second gap should count in full, with no welcome note
+  const fps = await state(page, () => {
+    const g = window.penguinIdle; g.state.buildings.chick = 10; g.engine.recompute();
+    g.state.fish = 0; g.state.lastTick = Date.now() - 60e3;
+    return g.engine.fishPerSecond(false);
+  });
+  await expect.poll(() => state(page, () => window.penguinIdle.state.fish)).toBeGreaterThan(fps * 59);
+  await expect(page.locator(".modal")).toHaveCount(0);
+});

@@ -33,7 +33,7 @@ npm run serve        # http://localhost:8080
 | Seasons | Real-date events (Antarctic calendar): Sunlit Festival, Penguin Awareness Week, World Penguin Day and Midwinter Feast. Each has a bonus and a wardrobe gift. Preview one with `?season=midwinter`. |
 | Memories | 79 achievements, each giving +1% production. |
 | Scene | Huts, igloos, boats and balloons appear as you build. It's night in the colony when it's night for you, and penguins huddle by the fire. |
-| Offline progress | Earns 25% of normal production while you're away (up to 150% with upgrades). |
+| Offline progress | Earns 25% of normal production while you're away (up to 150% with upgrades). This also covers the computer sleeping with the game still open. A tab left open in the background keeps earning at the full rate. |
 
 ## Accessibility and comfort
 
