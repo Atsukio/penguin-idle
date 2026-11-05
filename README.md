@@ -20,7 +20,7 @@ npm run serve        # http://localhost:8080
 | --- | --- |
 | Patting | Pat the penguin for fish. Some pats are **Big Catches** (×10 or more). Fish fly up into the counter as you pat. |
 | The big penguin | It blinks, follows your cursor, squints happily when patted, gets excited if you pat quickly, sips cocoa and waves when idle, dozes off if left alone, and notices golden fish. |
-| Colony (12 tiers) | Sleepy Chicks, Scarf-Wrapped Fishers, Cocoa Igloos, Lantern Boats, Net-Knitting Circles and more. New arrivals waddle into the scene. Buy x1 / x10 / x100 / Max. |
+| Colony (12 tiers) | Sleepy Chicks, Scarf-Wrapped Fishers, Cocoa Igloos, Lantern Boats, Net-Knitting Circles and more. New arrivals waddle into the scene. Buy x1 / x10 / x100 / Max. With x10 or more selected, hovering a row shows its count and output after the purchase, highlighted. |
 | Upgrades (123) | Seven themed tiers per colony member, plus patting, whole-colony, golden-fish, synergy and scrapbook upgrades. Each has its own icon. **Buy all** buys every affordable one. |
 | Workshop | 12 levelled research projects bought with fish. They reset each migration. |
 | Golden fish | A rare fish swims by: a Lucky Catch, a Cocoa Rush, a Flipper Flurry or (late game) an Aurora Blessing. |

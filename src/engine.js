@@ -168,6 +168,25 @@
     const first = b.baseCost * Math.pow(COST_GROWTH, S.buildings[b.id]) * M.costMult;
     return Math.max(0, Math.floor(Math.log(S.fish * (COST_GROWTH - 1) / first + 1) / Math.log(COST_GROWTH)));
   }
+  // What buying n more of a colony member would do, including milestones and synergies.
+  // It recomputes with the extra members, reads the numbers, then puts everything back.
+  let previewCache = null;
+  function previewBuy(id, n) {
+    const owned = S.buildings[id];
+    if (previewCache && previewCache.m === M && previewCache.id === id && previewCache.n === n && previewCache.owned === owned) return previewCache.out;
+    const before = M;
+    S.buildings[id] = owned + n;
+    let after;
+    try { recompute(); after = M; } finally { S.buildings[id] = owned; M = before; }
+    const out = {
+      owned: owned + n,
+      each: after.bFps[id], total: after.bFps[id] * (owned + n),
+      fps: after.baseFps, fpsGain: after.baseFps - before.baseFps,
+      milestones: milestonesReached(owned + n) - milestonesReached(owned),
+    };
+    previewCache = { m: before, id, n, owned, out };
+    return out;
+  }
   const buildingVisible = (b, i) => S.buildings[b.id] > 0 || i === 0 || S.buildings[BUILDINGS[i - 1].id] > 0 || S.runFish >= b.baseCost * 0.5;
 
   // Cube root (as in Cookie Clicker): doubling your feathers takes 8× the fish, so later runs lengthen
@@ -734,7 +753,7 @@
     defaultSettings, freshState, recompute, replaceState,
     has, milestonesReached, nodeLevel, nodeCost, nodeReqsMet, spendableFeathers, helperOn,
     researchLevel, researchCost, researchUnlocked, upgradeCost, currentSeason,
-    buffMult, fishPerSecond, buildingFps, clickPower, costOf, maxAffordable, buildingVisible,
+    buffMult, fishPerSecond, buildingFps, clickPower, costOf, maxAffordable, previewBuy, buildingVisible,
     featherTotalFor, pendingFeathers, nextFeatherAt, availableUpgrades, availableShores, bestBuilding,
     gain, clickPenguin, buyBuilding, buyUpgrade, buyAllUpgrades, buyResearch, learnNode, refundTree,
     hireHelper, toggleHelper, doMigrate, setNextShore,

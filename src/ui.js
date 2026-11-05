@@ -250,6 +250,11 @@
         <div class="owned" aria-hidden="true">0</div>`;
       el.addEventListener("click", e => activate("building", b.id, () => E.buyBuilding(b.id, buyCount(b), pointFrom(e, el))));
       attachTooltip(el, () => buildingTooltip(b));
+      const preview = on => () => { if (on) previewId = b.id; else if (previewId === b.id) previewId = null; paintBuilding(b); };
+      el.addEventListener("mouseenter", preview(true));
+      el.addEventListener("mouseleave", preview(false));
+      el.addEventListener("focus", preview(true));
+      el.addEventListener("blur", preview(false));
       list.appendChild(el);
       els[b.id] = {
         root: el, cost: el.querySelector(".b-cost"), fps: el.querySelector(".b-fps"),
@@ -258,16 +263,25 @@
     });
   }
 
-  function refreshBuildings() {
-    D.BUILDINGS.forEach(b => {
-      const e = els[b.id], owned = S().buildings[b.id];
-      setText(e.owned, String(owned));
-      setText(e.fps, `${fmt(E.buildingFps(b.id) * E.buffMult("prod"))}/s each`);
-      const prev = [0, ...D.MILESTONES].filter(x => x <= owned).pop();
-      const next = D.MILESTONES.find(x => x > owned);
-      e.bar.style.width = next ? `${((owned - prev) / (next - prev)) * 100}%` : "100%";
-    });
+  // The row being hovered or focused (or picked on a phone) shows its after-purchase count and
+  // output when buying more than one at a time
+  let previewId = null;
+  function paintBuilding(b) {
+    const e = els[b.id];
+    if (!e) return;
+    const n = buyCount(b);
+    const p = (previewId === b.id || (sheetSel && sheetSel.kind === "building" && sheetSel.id === b.id)) && n > 1 && !e.root.disabled
+      ? E.previewBuy(b.id, n) : null;
+    const owned = p ? p.owned : S().buildings[b.id];
+    const each = p ? p.each : E.buildingFps(b.id);
+    e.root.classList.toggle("previewing", !!p);
+    setText(e.owned, String(owned));
+    setText(e.fps, `${fmt(each * E.buffMult("prod"))}/s each`);
+    const prev = [0, ...D.MILESTONES].filter(x => x <= owned).pop();
+    const next = D.MILESTONES.find(x => x > owned);
+    e.bar.style.width = next ? `${((owned - prev) / (next - prev)) * 100}%` : "100%";
   }
+  const refreshBuildings = () => D.BUILDINGS.forEach(paintBuilding);
 
   function tickBuildings() {
     let revealNext = true;
@@ -280,6 +294,8 @@
       if (!visible) revealNext = false;
       const n = buyCount(b);
       const cost = E.costOf(b, owned, n);
+      // Max changes as fish come in, and the phone's picked row changes on taps, so keep previews current
+      if (previewId === b.id || e.root.classList.contains("previewing") || (sheetSel && sheetSel.id === b.id)) paintBuilding(b);
       setText(e.cost, `${n > 1 ? `${n}× ` : ""}🐟 ${fmt(cost)}`);
       const can = S().fish >= cost;
       e.root.classList.toggle("affordable", can);
@@ -939,6 +955,7 @@
     buyAmount = n === "max" ? "max" : Number(n);
     PI.fx.Sound.play("tick");
     renderTab(false);
+    if (tooltipFn) $("tooltip").innerHTML = tooltipFn();
   }
   const cycleBuyAmount = () => { const order = ["1", "10", "100", "max"]; setBuyAmount(order[(order.indexOf(String(buyAmount)) + 1) % order.length]); };
 

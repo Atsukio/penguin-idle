@@ -229,8 +229,7 @@ h2 { font-size: 1.1rem; margin: 16px 0 8px; letter-spacing: .01em; }
 .tier-4 { background: #a9c8ff; }
 .tier-5 { background: #d9b3ff; }
 .tier-6 { background: linear-gradient(90deg, #ffb3b3, #ffe08a, #a6e3bd, #a9c8ff, #d9b3ff); }
-.tooltip .t-sub { color: var(--muted); font-size: .8rem; margin-bottom: 4px; }
-.upgrade.affordable { border-color: var(--good); box-shadow: 0 0 12px rgba(166, 227, 189, .35); }
+.tooltip .t-sub { color: var(--muted); font-size: .8rem; margin-bottom: 4px; }.upgrade.affordable { border-color: var(--good); box-shadow: 0 0 12px rgba(166, 227, 189, .35); }
 .upgrade:not(.affordable) { opacity: .5; }
 
 /* ---------- Buildings ---------- */
@@ -260,6 +259,11 @@ h2 { font-size: 1.1rem; margin: 16px 0 8px; letter-spacing: .01em; }
 .building:not(.affordable) { opacity: .7; }
 .building:not(.affordable) .cost { color: var(--bad); }
 .building.locked { filter: brightness(.55); }
+/* Hovering with x10/x100/Max: the row shows the count and output it would have after buying */
+.building.previewing .owned, .building.previewing .b-fps { color: var(--accent); }
+.building.previewing.affordable .owned, .building.previewing.affordable .b-fps { color: var(--good); }
+.building.previewing .b-fps { font-weight: 700; }
+.building.previewing .milestone-bar > div { background: linear-gradient(90deg, var(--good), var(--gold)); }
 .building.locked .name, .building.locked .desc { filter: blur(3px); }
 .milestone-bar { height: 5px; background: rgba(255,255,255,.1); border-radius: 3px; margin-top: 5px; overflow: hidden; }
 .milestone-bar > div { height: 100%; background: linear-gradient(90deg, var(--rose), var(--gold)); transition: width .3s var(--ease-out); }

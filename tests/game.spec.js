@@ -40,6 +40,33 @@ test("patting earns fish and buys a Sleepy Chick", async ({ page }) => {
   await expect(page.locator("#buildings .building").first().locator(".owned")).toHaveText("1");
 });
 
+test("hovering with x10 shows the row's new count and output, and the preview matches the real purchase", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  await page.evaluate(() => { const g = window.penguinIdle; g.state.buildings.chick = 20; g.state.fish = 1e9; g.engine.recompute(); g.engine.bus.emit("structure"); });
+  const chick = page.locator("#buildings .building").first();
+  const eachText = () => chick.locator(".b-fps").textContent();
+  const eachNow = await eachText();
+  await page.locator('#buyMode [data-n="10"]').click();
+  await chick.hover();
+  await expect(chick).toHaveClass(/previewing/);
+  await expect(chick.locator(".owned")).toHaveText("30");
+  expect(await eachText()).not.toBe(eachNow);                 // passing the 25 milestone doubles output
+  await page.mouse.move(5, 5);
+  await expect(chick).not.toHaveClass(/previewing/);
+  await expect(chick.locator(".owned")).toHaveText("20");
+  const { preview, before, after } = await page.evaluate(() => {
+    const g = window.penguinIdle, E = g.engine;
+    const before = E.fishPerSecond(false);
+    const preview = E.previewBuy("chick", 10);
+    const untouched = g.state.buildings.chick === 20 && E.fishPerSecond(false) === before;
+    E.buyBuilding("chick", 10);
+    return { preview, before: untouched ? before : -1, after: E.fishPerSecond(false) };
+  });
+  expect(before).toBeGreaterThan(0);                  // previewing changed nothing
+  expect(preview.fps).toBeCloseTo(after, 6);          // and predicted the real result
+});
+
 test("keyboard: arrow keys move between tabs and Escape closes dialogs", async ({ page }) => {
   await page.goto("/");
   await page.locator("#tabbtn-colony").focus();
