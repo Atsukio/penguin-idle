@@ -11,6 +11,8 @@
     const st = S().settings;
     PI.fmtOptions.scientific = st.scientific;
     document.documentElement.classList.toggle("reduce-motion", st.reduceMotion);
+    document.documentElement.classList.toggle("cozy-cursor", st.cozyCursor);
+    $("optCursor").checked = st.cozyCursor;
     document.documentElement.style.fontSize = `${st.textSize * 100}%`;
     PI.fx.Sound.setVolume();
     if (PI.fx.Sound.ctx || !st.ambience) PI.fx.Sound.setAmbience(st.ambience && st.sound);
@@ -44,6 +46,7 @@
     $("optShake").addEventListener("change", () => PI.fx.Shake.add(0.5));   // preview the chosen strength
     bind("optReduceMotion", "reduceMotion", el => el.checked, () => ui().refreshStructure());
     bind("optParticles", "particles", el => el.checked);
+    bind("optCursor", "cozyCursor", el => el.checked);
     bind("optScientific", "scientific", el => el.checked, () => ui().refreshStructure());
     bind("optTextSize", "textSize", el => Number(el.value));
   }

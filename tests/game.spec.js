@@ -226,6 +226,19 @@ test("the colony works: residents fetch fish to the basket, props make fish, and
   expect(await page.evaluate(() => PI.ui.workNow())).toBe(false);
 });
 
+test("cozy cursor: an arrow, a glove on buttons and a mitten on the penguin, and it can be switched off", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  const cursorOf = sel => page.evaluate(s => getComputedStyle(document.querySelector(s)).cursor, sel);
+  expect(await cursorOf("body")).toMatch(/^url\("data:image\/svg\+xml.+\) 5 4, auto$/);
+  expect(await cursorOf("#tabbtn-colony")).toMatch(/\) 12 3, pointer$/);
+  expect(await cursorOf("#bigPenguin")).toMatch(/\) 17 13, pointer$/);
+  await page.locator("#tabbtn-stats").click();
+  await page.locator("#optCursor").uncheck();
+  expect(await cursorOf("body")).toBe("auto");
+  expect(await cursorOf("#tabbtn-colony")).toBe("pointer");
+});
+
 test("lofi music starts on the first interaction and follows its setting", async ({ page }) => {
   await page.goto("/");
   expect(await page.evaluate(() => PI.fx.Music.on)).toBe(false);   // browsers block audio before a gesture

@@ -34,7 +34,7 @@
     return {
       particles: true, scientific: false,
       sound: true, volume: 0.5, ambience: false, music: true, musicVolume: 0.5,
-      shake: 0.6, reduceMotion: prefersReducedMotion, textSize: 1,
+      shake: 0.6, reduceMotion: prefersReducedMotion, textSize: 1, cozyCursor: true,
     };
   }
 
