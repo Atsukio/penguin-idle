@@ -505,6 +505,26 @@ html.reduce-motion .golden-fish, html.reduce-motion .waddler, html.reduce-motion
 #fxCanvas { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 55; }
 
 .badges { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.music-btn {
+  position: relative; width: 36px; height: 36px; padding: 0; border-radius: 50%; font-size: 1.05rem; line-height: 1;
+  background: rgba(255, 222, 186, .1); border: 1px solid rgba(255, 222, 186, .35); color: var(--text);
+  transition: background .2s, opacity .2s;
+}
+.music-btn:hover { background: rgba(255, 222, 186, .2); }
+.music-btn:focus-visible { outline: 3px solid var(--text); outline-offset: 2px; }
+.music-btn.off span { opacity: .45; filter: grayscale(1); }
+.music-btn.off::after {   /* a soft slash through the note */
+  content: ""; position: absolute; left: 8px; right: 8px; top: 50%; height: 2px; border-radius: 2px;
+  background: var(--muted); rotate: -40deg;
+}
+.friend-names { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; margin-bottom: 6px; }
+.friend { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--border); }
+.friend input {
+  flex: 1; min-width: 0; border: none; background: none; color: var(--text); font: 700 .95rem "Nunito", sans-serif; padding: 4px 0;
+}
+.friend input::placeholder { color: var(--muted); font-weight: 600; }
+.friend:focus-within { border-color: var(--gold); }
+.friend input:focus { outline: none; }
 .season-badge {
   background: rgba(166, 227, 189, .14); border: 1px solid rgba(166, 227, 189, .5); color: var(--good);
   padding: 6px 12px; border-radius: 999px; font-weight: 700; cursor: help;
@@ -717,6 +737,18 @@ kbd {
   text-shadow: 0 1px 2px rgba(0, 0, 0, .7); animation: catchPop 1.6s var(--ease-out) forwards; pointer-events: none; white-space: nowrap;
 }
 .waddlers { pointer-events: none; }   /* so hovering reaches the props behind */
+.prop.sheet-selected { outline: none; filter: drop-shadow(0 0 5px #fff6e0) drop-shadow(0 0 2px #fff6e0); }
+
+/* Named residents wear a little tag (kept readable when the penguin faces the other way) */
+.w-tag {
+  position: absolute; left: 50%; bottom: 100%; translate: -50% -1px; white-space: nowrap; pointer-events: none; transition: opacity .2s;
+  font: 800 9px/1 "Nunito", sans-serif; color: #fff2dc; letter-spacing: .02em;
+  padding: 1px 4px; border-radius: 6px; background: rgba(40, 24, 40, .42);
+}
+.waddler.flip .w-tag { scale: -1 1; }
+.waddler[data-name] { z-index: 1; }   /* named friends stand in front, so their tags stay readable */
+.waddler.talking .w-tag { opacity: 0; }   /* the speech bubble carries the name */
+.chat-bubble .who { color: #c0563f; }
 .landed-fish {
   position: absolute; z-index: 2; font-size: .7rem; translate: -50% -50%; pointer-events: none;
   animation: flop .3s ease-in-out 3 alternate, fadeAway .5s 1.3s forwards;

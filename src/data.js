@@ -506,6 +506,12 @@
   ach("letters_30", "Faithful Friend", "Answer 30 penguin letters.", s => s.stats.lettersClaimed >= 30, "📬");
   ach("outfit", "Dressed Up", "Change the big penguin's outfit.", s => s.stats.outfitChanges >= 1, "🪞");
   ach("season_1", "Festive Spirit", "Catch a golden fish during a seasonal event.", s => s.stats.seasonalCatches >= 1, "🎊");
+  ach("deliver_100", "Basket Brigade", "Watch the colony carry 100 catches to the basket.", s => s.stats.deliveries >= 100, "🧺");
+  ach("deliver_1000", "Overflowing Basket", "Watch the colony carry 1,000 catches to the basket.", s => s.stats.deliveries >= 1000, "🪣");
+  ach("prop_look", "Curious Flipper", "See how a colony member makes its fish (hover or tap it in the scene).", s => s.stats.propLooks >= 1, "🔎");
+  ach("name_1", "Friends by Name", "Give a resident a name.", s => (s.names || []).some(Boolean), "📛");
+  ach("name_all", "Everyone Has a Name", "Name six residents.", s => (s.names || []).filter(Boolean).length >= 6, "🏷️");
+  ach("music_hour", "Lofi Listener", "Listen to the colony's music for an hour.", s => s.stats.musicSeconds >= 3600, "🎧");
 
   PI.fmt = fmt;
   PI.fmtTime = fmtTime;

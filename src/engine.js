@@ -42,6 +42,7 @@
     return {
       clicks: 0, clickFish: 0, goldenClicks: 0, bigCatches: 0, longestAway: 0,
       buildingsBought: 0, upgradesBought: 0, researchBought: 0, lettersClaimed: 0, outfitChanges: 0, seasonalCatches: 0,
+      deliveries: 0, musicSeconds: 0, propLooks: 0,
       startedAt: now(), runStartedAt: now(),
     };
   }
@@ -57,6 +58,7 @@
       helpers: {},         // helper id -> true (on) / false (off); a key means it's hired
       shore: "home", nextShore: "home", shoresVisited: ["home"],
       cosmetics: { hat: "coral", scarf: "coral", item: "mug" },
+      names: [],           // names the player gave colony residents (up to NAME_SLOTS; "" = an unnamed slot)
       seasonalUnlocks: [], // season ids where a golden fish was caught
       letters: { day: "", list: [], bonus: false },
       history: [],         // [timestamp, fish per second] samples for the Stats graph
@@ -361,6 +363,21 @@
     return true;
   }
 
+  // ---------- Resident names ----------
+  const NAME_SLOTS = 6;
+  const cleanName = v => String(v == null ? "" : v).replace(/[\u0000-\u001f\u007f<>]/g, "").replace(/\s+/g, " ").trim().slice(0, 16);
+  function setName(i, name) {
+    if (!(i >= 0 && i < NAME_SLOTS)) return false;
+    const n = cleanName(name);
+    while (S.names.length <= i) S.names.push("");
+    if (S.names[i] === n) return false;
+    S.names[i] = n;
+    while (S.names.length && !S.names[S.names.length - 1]) S.names.pop();
+    bus.emit("names");
+    return true;
+  }
+  const residentNames = () => S.names.filter(Boolean);
+
   // ---------- Golden fish ----------
   const goldenDelay = () => (120 + Math.random() * 180) * 1000 / M.goldenFreq;
 
@@ -659,6 +676,7 @@
     s.seasonalUnlocks = idList(data.seasonalUnlocks, SEASON_BY_ID);
     const cos = obj(data.cosmetics);
     Object.keys(COSMETICS).forEach(slot => { if (COSMETICS[slot].some(c => c.id === cos[slot])) s.cosmetics[slot] = cos[slot]; });
+    s.names = (Array.isArray(data.names) ? data.names : []).slice(0, NAME_SLOTS).map(cleanName);
     const L = obj(data.letters);
     if (typeof L.day === "string" && Array.isArray(L.list)) {
       s.letters.day = L.day;
@@ -759,6 +777,7 @@
     gain, clickPenguin, buyBuilding, buyUpgrade, buyAllUpgrades, buyResearch, learnNode, refundTree,
     hireHelper, toggleHelper, doMigrate, setNextShore,
     cosmeticItem, cosmeticUnlocked, setOutfit,
+    NAME_SLOTS, cleanName, setName, residentNames,
     goldenDelay, goldenEffect,
     dayKey, ensureLetters, letterProgress, letterReward, claimLetter, claimLetterBonus,
     checkAchievements, runHelpers, tick, applyOffline,

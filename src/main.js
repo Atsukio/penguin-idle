@@ -19,6 +19,7 @@
     if (PI.fx.Sound.ctx) { PI.fx.Music.set(st.music); PI.fx.Music.setVolume(); }   // before the first click, audio isn't allowed yet
     $("optSound").checked = st.sound;
     $("optMusic").checked = st.music;
+    updateMusicBtn();
     $("optMusicVolume").value = st.musicVolume;
     $("optVolume").value = st.volume;
     $("optAmbience").checked = st.ambience;
@@ -30,7 +31,24 @@
     PI.fx.Particles.start();
   }
 
+  // The 🎵 button in the top bar (and Shift+M): one tap to mute or unmute the music
+  function updateMusicBtn() {
+    const on = S().settings.music, btn = $("musicBtn");
+    btn.setAttribute("aria-pressed", String(on));
+    btn.classList.toggle("off", !on);
+    btn.title = on ? `Now playing: ${PI.fx.Music.label()} lofi. Click to mute (Shift+M).` : "Music is off. Click to play some lofi (Shift+M).";
+  }
+  function toggleMusic() {
+    // Before the first click the music is "on" but browsers haven't let it play yet: a press starts it rather than muting
+    const canPlay = !!PI.fx.Sound.ensure();
+    if (!(S().settings.music && !PI.fx.Music.on && canPlay)) S().settings.music = !S().settings.music;
+    applySettings();
+    ui().toast(S().settings.music ? `🎵 Music on: ${PI.fx.Music.label()} lofi.` : "🔇 Music off.");
+  }
+
   function bindSettings() {
+    $("musicBtn").addEventListener("click", toggleMusic);
+    PI.bus.on("musicMood", updateMusicBtn);
     const bind = (id, key, read, after) => $(id).addEventListener($(id).type === "range" ? "input" : "change", e => {
       S().settings[key] = read(e.target);
       applySettings();
@@ -109,7 +127,8 @@
       if (e.ctrlKey || e.metaKey || e.altKey || ui().modalOpen) return;
       if (e.target.closest("input, textarea, select")) return;
       const k = e.key.toLowerCase();
-      if (/^[1-6]$/.test(k)) { ui().selectTab(TABS[Number(k) - 1], true); e.preventDefault(); }
+      if (k === "m" && e.shiftKey) { toggleMusic(); e.preventDefault(); }
+      else if (/^[1-6]$/.test(k)) { ui().selectTab(TABS[Number(k) - 1], true); e.preventDefault(); }
       else if (k === "b") { E.buyAllUpgrades(); e.preventDefault(); }
       else if (k === "m") { ui().cycleBuyAmount(); e.preventDefault(); }
       else if (k === "p") { $("bigPenguin").focus(); e.preventDefault(); }
@@ -187,6 +206,7 @@
     const dt = Math.min(5, (now - lastFrame) / 1000);
     lastFrame = now;
     E.tick(dt);
+    if (PI.fx.Music.on && PI.fx.Sound.ctx && PI.fx.Sound.ctx.state === "running") S().stats.musicSeconds += dt;
     if (Date.now() >= nextGolden) {
       if (!document.hidden) ui().spawnGolden();
       nextGolden = Date.now() + E.goldenDelay();
@@ -222,10 +242,12 @@
     setupPWA();
 
     // Browsers only allow audio after a user gesture: start ambience on the first interaction
-    const unlockAudio = () => {
+    const unlockAudio = e => {
       if (S().settings.sound && S().settings.ambience) PI.fx.Sound.setAmbience(true);
       else if (PI.fx.Sound.ctx) PI.fx.Sound.ensure();
-      if (S().settings.music) PI.fx.Music.start();
+      // A first press of the music button or Shift+M is about the music itself, so leave it to the toggle
+      const aboutMusic = (e.target && e.target.closest && e.target.closest("#musicBtn")) || (e.key && e.key.toLowerCase() === "m" && e.shiftKey);
+      if (S().settings.music && !aboutMusic) PI.fx.Music.start();
       document.removeEventListener("pointerdown", unlockAudio);
       document.removeEventListener("keydown", unlockAudio);
     };

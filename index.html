@@ -27,6 +27,7 @@
       <div class="fps"><span id="fps">0</span> per second</div>
     </div>
     <div class="badges">
+      <button class="music-btn" id="musicBtn" aria-pressed="true" aria-label="Lofi music (Shift+M)"><span aria-hidden="true">🎵</span></button>
       <span class="season-badge hidden" id="seasonBadge"></span>
       <span class="feather-badge" id="featherBadge" title="Emperor Feathers boost all fish production">
         <span aria-hidden="true">🪶</span> <span id="featherTotal">0</span> <small>(<span id="featherBonus">+0%</span>)</small>
@@ -140,6 +141,9 @@
         <p class="muted">Friends from around the colony write in with small requests each day.</p>
         <div id="letters" class="letter-list"></div>
         <div id="letterBonus" class="letter-bonus"></div>
+        <h2>Colony friends</h2>
+        <p class="muted">Give some of your residents names. They'll wear little name tags in the scene, and you'll hear about them in chats.</p>
+        <div id="friendNames" class="friend-names"></div>
         <h2>Wardrobe</h2>
         <p class="muted">Dress up the big penguin. New pieces unlock as you collect memories, explore and celebrate seasonal events.</p>
         <div id="wardrobe" class="wardrobe"></div>
@@ -181,6 +185,7 @@
           <dt><kbd>1</kbd>–<kbd>6</kbd></dt><dd>Switch tabs</dd>
           <dt><kbd>B</kbd></dt><dd>Buy all affordable upgrades</dd>
           <dt><kbd>M</kbd></dt><dd>Cycle buy amount (x1 / x10 / x100 / Max)</dd>
+          <dt><kbd>Shift</kbd> + <kbd>M</kbd></dt><dd>Turn the music on or off</dd>
           <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Move between tabs</dd>
           <dt><kbd>Esc</kbd></dt><dd>Close a dialog or the details sheet</dd>
         </dl>

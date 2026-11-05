@@ -2,7 +2,7 @@
  * Strategy: stale-while-revalidate. Serve the cached copy instantly, fetch a fresh one in the
  * background, and use it next time. Bump CACHE when the list of files changes.
  */
-const CACHE = "penguin-idle-v4";
+const CACHE = "penguin-idle-v5";
 const FILES = [
   "./", "index.html", "style.css", "manifest.webmanifest",
   "src/data.js", "src/engine.js", "src/fx.js", "src/penguin.js", "src/ui.js", "src/main.js",

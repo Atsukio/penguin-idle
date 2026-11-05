@@ -210,7 +210,11 @@ test("the colony works: residents fetch fish to the basket, props make fish, and
   await closeModals(page);
   await page.evaluate(() => { const g = window.penguinIdle; Object.assign(g.state.buildings, { chick: 10, fisher: 5, trawler: 2 }); g.state.fish = 5000; g.engine.recompute(); g.engine.bus.emit("structure"); });
   await expect(page.locator("#fishPile span")).toHaveCount(3);                      // ceil(log10(5001) × 0.7)
-  await expect(page.locator('#props [data-id="trawler"]')).toHaveAttribute("title", /^2 Lantern Boats: .+ fish\/s \(\d+% of the colony's catch\)$/);
+  await page.locator('#props [data-id="trawler"]').hover({ force: true });            // hovering a prop shows what it earns
+  await expect(page.locator("#tooltip")).toContainText("2 owned catch");
+  await expect(page.locator("#tooltip")).toContainText(/That's (\d+%|under 1%) of the colony's catch/);
+  expect(await state(page, () => window.penguinIdle.state.stats.propLooks)).toBeGreaterThan(0);
+  await page.mouse.move(5, 5);
   await page.evaluate(() => PI.ui.propNow());
   await expect(page.locator("#colony .fly-fish").first()).toBeAttached();
   test.setTimeout(60000);
@@ -249,6 +253,60 @@ test("lofi music starts on the first interaction and follows its setting", async
   expect(await page.evaluate(() => [PI.fx.Music.on, window.penguinIdle.state.settings.music])).toEqual([false, false]);
   await page.locator("#optMusic").check();
   expect(await page.evaluate(() => PI.fx.Music.on)).toBe(true);
+});
+
+test("the top-bar music button and Shift+M toggle the music", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  const music = () => page.evaluate(() => [PI.fx.Music.on, window.penguinIdle.state.settings.music]);
+  await page.locator("#musicBtn").click();                    // the very first press starts it rather than muting
+  await expect.poll(music).toEqual([true, true]);
+  await expect(page.locator("#musicBtn")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#musicBtn")).toHaveAttribute("title", /^Now playing: (night-time )?cozy lofi/);
+  await page.locator("#musicBtn").click();
+  await expect.poll(music).toEqual([false, false]);
+  await expect(page.locator("#musicBtn")).toHaveAttribute("aria-pressed", "false");
+  await page.keyboard.press("Shift+M");
+  await expect.poll(music).toEqual([true, true]);
+  expect(await page.locator("#optMusic").isChecked()).toBe(true);
+});
+
+test("the music follows the scene: each shore, night-time and the Midwinter Feast", async ({ page }) => {
+  await page.goto("/?shore=sunnycove&season=midwinter");
+  await closeModals(page);
+  const [mood, isNight] = await page.evaluate(() => [PI.fx.Music.next || PI.fx.Music.mood, document.getElementById("colony").classList.contains("night")]);
+  expect(mood.bpm).toBe(isNight ? 70 : 78);   // the scene follows the real clock
+  expect(mood.bells).toBe(1);
+  expect(mood.name).toMatch(/sunny/);
+  const night = await page.evaluate(() => { PI.fx.Music.setMood({ night: true, shore: "blizzard" }); return PI.fx.Music.label(); });
+  expect(night).toBe("night-time snowed-in");
+  // Playing through a change of mood keeps going without errors
+  await page.locator("#tabbtn-stats").click();
+  await expect.poll(() => page.evaluate(() => PI.fx.Music.on)).toBe(true);
+  await page.evaluate(() => PI.fx.Music.setMood({ shore: "aurorafields", season: "midwinter" }));
+  await expect.poll(() => page.evaluate(() => PI.fx.Music.mood.name), { timeout: 8000 }).toBe("dreamy midwinter");
+});
+
+test("residents can be named: tags in the scene, saved, cleaned and remembered", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  await page.evaluate(() => { const g = window.penguinIdle; g.state.buildings.chick = 12; g.engine.recompute(); g.engine.bus.emit("structure"); });
+  await page.keyboard.press("4");   // Home
+  const first = page.locator('#friendNames input[data-slot="0"]');
+  await first.fill("  Pip  ");
+  await first.press("Enter");
+  await expect(first).toHaveValue("Pip");
+  expect(await state(page, () => window.penguinIdle.state.names)).toEqual(["Pip"]);
+  await expect(page.locator("#waddlers .w-tag")).toHaveText(["Pip"]);
+  await page.locator('#friendNames input[data-slot="2"]').fill("<i>Waddles</i>");
+  await page.locator('#friendNames input[data-slot="2"]').press("Enter");
+  expect(await state(page, () => window.penguinIdle.state.names)).toEqual(["Pip", "", "iWaddles/i"]);
+  await expect(page.locator("#waddlers .w-tag")).toHaveText(["Pip", "iWaddles/i"]);
+  const back = await page.evaluate(() => { const g = window.penguinIdle; g.engine.checkAchievements(); return [g.decodeSave(g.encodeSave()).names, g.state.achievements.includes("name_1")]; });
+  expect(back).toEqual([["Pip", "", "iWaddles/i"], true]);
+  await first.fill("");
+  await first.press("Enter");
+  expect(await state(page, () => window.penguinIdle.state.names)).toEqual(["", "", "iWaddles/i"]);
 });
 
 test("the big penguin talks: a hello for new players, and the first of a kind is welcomed", async ({ page }) => {
@@ -337,6 +395,18 @@ test("@touch first tap shows details, second tap buys", async ({ page }) => {
   expect(await state(page, () => window.penguinIdle.state.buildings.chick)).toBe(2);
   await page.locator("#sheetClose").tap();
   await expect(page.locator("#infoSheet")).toBeHidden();
+});
+
+test("@touch tapping a prop in the scene shows what it earns, with a Buy button", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  await page.evaluate(() => { const g = window.penguinIdle; Object.assign(g.state.buildings, { chick: 3, trawler: 2 }); g.state.fish = 1e12; g.engine.recompute(); g.engine.bus.emit("structure"); });
+  await page.locator('#props [data-id="trawler"]').tap({ force: true });
+  await expect(page.locator("#infoSheet")).toBeVisible();
+  await expect(page.locator("#infoSheet")).toContainText("Lantern Boat");
+  await expect(page.locator("#infoSheet")).toContainText(/That's (\d+%|under 1%) of the colony's catch/);
+  await page.locator("#sheetBuy").tap();
+  expect(await state(page, () => window.penguinIdle.state.buildings.trawler)).toBe(3);
 });
 
 test("@touch layout fits a phone screen without sideways scrolling", async ({ page }) => {

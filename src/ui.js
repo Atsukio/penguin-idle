@@ -155,7 +155,8 @@
   function selectForSheet(kind, id) {
     sheetSel = { kind, id };
     document.querySelectorAll(".sheet-selected").forEach(x => x.classList.remove("sheet-selected"));
-    const el = kind === "building" ? els[id] && els[id].root : $("upgrades").querySelector(`[data-id="${id}"]`);
+    const el = kind === "building" ? els[id] && els[id].root
+      : kind === "prop" ? $("props").querySelector(`[data-id="${id}"]`) : $("upgrades").querySelector(`[data-id="${id}"]`);
     if (el) el.classList.add("sheet-selected");
     $("infoSheet").classList.remove("hidden");
     renderSheet();
@@ -181,12 +182,12 @@
     if (!sheetSel) return;
     const { kind, id } = sheetSel;
     let html, cost, can, label;
-    if (kind === "building") {
+    if (kind === "building" || kind === "prop") {
       const b = D.B_BY_ID[id], n = buyCount(b);
       cost = E.costOf(b, S().buildings[id], n);
       can = S().fish >= cost;
       label = `Buy ${n > 1 ? `${n}× ` : ""}· 🐟 ${fmt(cost)}`;
-      html = buildingTooltip(b);
+      html = kind === "prop" ? propTooltip(id) : buildingTooltip(b);
     } else {
       const u = D.UP_BY_ID[id];
       if (!u || E.has(id)) { closeSheet(); return; }
@@ -204,7 +205,7 @@
     $("sheetClose").addEventListener("click", closeSheet);
     $("sheetBuy").addEventListener("click", e => {
       const pos = pointFrom(e, $("sheetBuy"));
-      if (kind === "building") E.buyBuilding(id, buyCount(D.B_BY_ID[id]), pos);
+      if (kind === "building" || kind === "prop") E.buyBuilding(id, buyCount(D.B_BY_ID[id]), pos);
       else E.buyUpgrade(id, pos);
     });
     if (hadFocus) $("sheetBuy").focus({ preventScroll: true });
@@ -646,6 +647,8 @@
       ["Migrations", `${S().migrations}`],
       ["Shores visited", `${S().shoresVisited.length} of ${D.SHORES.length}`],
       ["Letters answered", fmt(st.lettersClaimed)],
+      ["Catches carried to the basket", fmt(st.deliveries)],
+      ["Music listened to", fmtTime(st.musicSeconds)],
       ["Feather bonus", `+${fmt((M().feather - 1) * 100)}%`],
       ["Memories bonus", `+${fmt((M().ach - 1) * 100)}%`],
       ["This migration started", `${fmtTime((E.now() - st.runStartedAt) / 1000)} ago`],
@@ -734,6 +737,8 @@
     const key = `${count}|${present.join(",")}|${S().buildings.aurora > 0}|${night}|${season && season.id}|${shoreId}|${S().settings.reduceMotion}`;
     if (key === sceneKey && !force) return;
     sceneKey = key;
+    PI.fx.Music.setMood({ night, shore: shoreId, season: season && season.id });   // the music follows the scene
+    PI.bus.emit("musicMood");
     const colony = $("colony");
     colony.classList.toggle("night", night);
     if (colony.dataset.shore !== shoreId) {
@@ -747,6 +752,7 @@
     $("props").innerHTML = SCENE_PROPS.filter(p => present.includes(p.id)).map(p => p.igloo
       ? `<div class="prop igloo" data-id="${p.id}" style="${p.style}"></div>`
       : `<span class="prop${p.cls ? " " + p.cls : ""}" data-id="${p.id}" style="${p.style}">${p.icon}</span>`).join("");
+    $("props").querySelectorAll("[data-id]").forEach(bindProp);
     $("sceneDecor").innerHTML = season ? SEASON_DECOR[season.id] || "" : "";
     const shore = M().shore;
     setText($("shorePill"), `${shore.icon} ${shore.name}`);
@@ -772,7 +778,54 @@
         setTimeout(() => wander(p), 300 + Math.random() * 4000);
       }
     }
+    applyNames();
   }
+
+  // ---------- Named residents: the player's names go to the first few penguins, who wear a little tag ----------
+  function applyNames() {
+    const names = E.residentNames(), all = [...$("waddlers").children];
+    all.forEach((p, i) => {
+      const name = names[i] || "";
+      if ((p.dataset.name || "") === name) return;
+      let tag = p.querySelector(".w-tag");
+      if (!name) { delete p.dataset.name; if (tag) tag.remove(); return; }
+      if (!tag) { tag = document.createElement("span"); tag.className = "w-tag"; p.appendChild(tag); }
+      p.dataset.name = name;
+      tag.textContent = name;
+    });
+  }
+
+  function buildFriends() {
+    const box = $("friendNames");
+    box.innerHTML = Array.from({ length: E.NAME_SLOTS }, (_, i) =>
+      `<label class="friend"><span aria-hidden="true">🐧</span><input type="text" maxlength="16" data-slot="${i}" placeholder="Name a resident" aria-label="Resident ${i + 1}'s name" autocomplete="off" spellcheck="false"></label>`).join("");
+    box.querySelectorAll("input").forEach(inp => {
+      const commit = () => { if (E.setName(Number(inp.dataset.slot), inp.value)) E.save(); inp.value = S().names[inp.dataset.slot] || ""; };
+      inp.addEventListener("change", commit);
+      inp.addEventListener("keydown", e => { if (e.key === "Enter") { commit(); inp.blur(); } });
+    });
+    fillFriends();
+  }
+  function fillFriends() {
+    $("friendNames").querySelectorAll("input").forEach(inp => {
+      if (document.activeElement !== inp) inp.value = S().names[inp.dataset.slot] || "";
+    });
+  }
+
+  // ---------- Props: hover (or tap, on phones) a colony member's prop to see what it earns ----------
+  function propShare(id) {
+    const all = D.BUILDINGS.reduce((t, b) => t + fpsOf(b.id), 0);
+    const pct = (fpsOf(id) / (all || 1)) * 100;
+    return pct > 0 && pct < 1 ? "under 1%" : `${Math.round(pct)}%`;
+  }
+  const propTooltip = id => `${buildingTooltip(D.B_BY_ID[id])}<div class="t-sub">That's <b>${propShare(id)}</b> of the colony's catch.</div>`;
+  function bindProp(el) {
+    const id = el.dataset.id;
+    attachTooltip(el, () => propTooltip(id));
+    el.addEventListener("mouseenter", () => { if (!isTouch()) lookedAtProp(); });
+    el.addEventListener("click", () => { if (isTouch()) { lookedAtProp(); selectForSheet("prop", id); } });
+  }
+  function lookedAtProp() { S().stats.propLooks++; }
 
   // A resident walks a short way, stops, maybe looks around or hops, then picks a new spot
   // y (optional) also moves the penguin nearer or further, in px from the bottom of the scene
@@ -882,7 +935,8 @@
     const ax = centreOf(a);
     const b = others.reduce((best, p) => (Math.abs(centreOf(p) - ax) < Math.abs(centreOf(best) - ax) ? p : best));
     a.dataset.busy = b.dataset.busy = "1";
-    const lines = pickChat();
+    const lines = [...pickChat()];
+    if (b.dataset.name && Math.random() < 0.5) lines[0] = `Hey ${b.dataset.name}! ${lines[0]}`;   // friends greet each other by name
     const begin = () => {
       const bx = centreOf(b), ax2 = centreOf(a);   // turn to face each other ("flip" faces right)
       a.classList.toggle("flip", bx > ax2);
@@ -906,7 +960,13 @@
     const who = i % 2 ? b : a;
     const bubble = document.createElement("span");
     bubble.className = "chat-bubble";
-    bubble.textContent = lines[i];
+    if (who.dataset.name) {   // named residents sign their lines
+      const n = document.createElement("b");
+      n.className = "who";
+      n.textContent = who.dataset.name;
+      bubble.append(n, " ");
+    }
+    bubble.append(lines[i]);
     colony.appendChild(bubble);
     // Sit above the speaker, kept inside the scene, with the tail still pointing at them
     const cr = colony.getBoundingClientRect(), pr = who.getBoundingClientRect();
@@ -1040,11 +1100,21 @@
         basket.classList.add("bump");
         const now = Date.now(), amount = E.fishPerSecond() * Math.min(60, (now - lastDelivery) / 1000);
         lastDelivery = now;
+        S().stats.deliveries++;
         if (amount > 0 && S().settings.particles) popAt(bp, `+${fmt(amount)}`);
         updateBasket();
+        if (p.dataset.name) cheerFor(p.dataset.name);
       });
       setTimeout(() => { delete p.dataset.busy; delete p.dataset.job; }, 900);
     }, 4 + Math.random() * 12);
+  }
+
+  // Now and then the big penguin cheers when a named friend brings in the catch
+  let lastCheer = 0;
+  const CHEERS = [n => `${n} caught a whopper!`, n => `Nice one, ${n}!`, n => `${n} brought in the catch!`, n => `Look at ${n} go!`, n => `Thank you, ${n}! 🐟`];
+  function cheerFor(name) {
+    if (Date.now() - lastCheer < 90000 || Math.random() > 0.35) return;
+    if (PI.penguin.say(CHEERS[Math.floor(Math.random() * CHEERS.length)](name))) lastCheer = Date.now();
   }
 
   function scheduleWork(delay) {
@@ -1058,13 +1128,6 @@
     const pile = $("fishPile");
     if (pile.childElementCount !== n) pile.innerHTML = PILE.slice(0, n).map(([x, y, r]) => `<span style="left:${x}px;bottom:${y}px;rotate:${r}deg">🐟</span>`).join("");
     $("iceHole").classList.toggle("hidden", !D.BUILDINGS.some(b => S().buildings[b.id] > 0));
-    // Hovering a colony member's prop shows what it earns
-    const all = D.BUILDINGS.reduce((t, b) => t + fpsOf(b.id), 0);
-    $("props").querySelectorAll("[data-id]").forEach(el => {
-      const b = D.B_BY_ID[el.dataset.id], f = fpsOf(b.id);
-      const title = `${S().buildings[b.id]} ${S().buildings[b.id] === 1 ? b.name : b.plural}: ${fmt(f * E.buffMult("prod"))} fish/s (${Math.round((f / (all || 1)) * 100)}% of the colony's catch)`;
-      if (el.title !== title) el.title = title;
-    });
   }
 
   // ---------- Props at work: each colony member makes its fish in its own way ----------
@@ -1253,7 +1316,8 @@
     const bus = PI.bus;
     bus.on("structure", refreshStructure);
     bus.on("buffs", refreshBuildings);
-    bus.on("stateReplaced", () => { shownFish = S().fish; rebuildScene(true); renderTab(true); });
+    bus.on("stateReplaced", () => { shownFish = S().fish; rebuildScene(true); renderTab(true); fillFriends(); });
+    bus.on("names", () => { applyNames(); fillFriends(); });
     bus.on("letters", () => { if (currentTab === "home") renderLetters(); updateBadges(); });
     bus.on("outfit", () => { if (currentTab === "home") renderWardrobe(); });
     bus.on("buyBuilding", d => arrival(d.id));
@@ -1276,6 +1340,7 @@
     buildResearch();
     buildTree();
     buildLights();
+    buildFriends();
     scheduleChat(6000 + Math.random() * 6000);
     scheduleWork(2000 + Math.random() * 2000);
     scheduleProps(1500);
