@@ -202,7 +202,7 @@ test("residents chat with each other in speech bubbles", async ({ page }) => {
   expect(b.x).toBeGreaterThanOrEqual(c.x);
   expect(b.x + b.width).toBeLessThanOrEqual(c.x + c.width + 1);
   await expect(bubble).toHaveCount(0, { timeout: 30000 });   // the chat finishes…
-  await expect.poll(() => page.locator("#waddlers [data-busy]").count(), { timeout: 30000 }).toBe(0);   // …and everyone goes back to wandering
+  await expect.poll(() => page.locator("#waddlers [data-busy]:not([data-job])").count(), { timeout: 30000 }).toBe(0);   // …and the chatters go back to wandering (workers are busy too)
 });
 
 test("the colony works: residents fetch fish to the basket, props make fish, and the basket shows the fish count", async ({ page }) => {
