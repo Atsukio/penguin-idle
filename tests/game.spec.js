@@ -226,6 +226,18 @@ test("the colony works: residents fetch fish to the basket, props make fish, and
   expect(await page.evaluate(() => PI.ui.workNow())).toBe(false);
 });
 
+test("lofi music starts on the first interaction and follows its setting", async ({ page }) => {
+  await page.goto("/");
+  expect(await page.evaluate(() => PI.fx.Music.on)).toBe(false);   // browsers block audio before a gesture
+  await closeModals(page);
+  await page.locator("#tabbtn-stats").click();
+  await expect.poll(() => page.evaluate(() => PI.fx.Music.on)).toBe(true);
+  await page.locator("#optMusic").uncheck();
+  expect(await page.evaluate(() => [PI.fx.Music.on, window.penguinIdle.state.settings.music])).toEqual([false, false]);
+  await page.locator("#optMusic").check();
+  expect(await page.evaluate(() => PI.fx.Music.on)).toBe(true);
+});
+
 test("the big penguin talks: a hello for new players, and the first of a kind is welcomed", async ({ page }) => {
   await page.goto("/");
   const say = page.locator("#penguinSay");

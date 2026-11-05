@@ -14,7 +14,10 @@
     document.documentElement.style.fontSize = `${st.textSize * 100}%`;
     PI.fx.Sound.setVolume();
     if (PI.fx.Sound.ctx || !st.ambience) PI.fx.Sound.setAmbience(st.ambience && st.sound);
+    if (PI.fx.Sound.ctx) { PI.fx.Music.set(st.music); PI.fx.Music.setVolume(); }   // before the first click, audio isn't allowed yet
     $("optSound").checked = st.sound;
+    $("optMusic").checked = st.music;
+    $("optMusicVolume").value = st.musicVolume;
     $("optVolume").value = st.volume;
     $("optAmbience").checked = st.ambience;
     $("optShake").value = st.shake;
@@ -26,7 +29,7 @@
   }
 
   function bindSettings() {
-    const bind = (id, key, read, after) => $(id).addEventListener(id === "optVolume" || id === "optShake" ? "input" : "change", e => {
+    const bind = (id, key, read, after) => $(id).addEventListener($(id).type === "range" ? "input" : "change", e => {
       S().settings[key] = read(e.target);
       applySettings();
       if (after) after();
@@ -35,6 +38,8 @@
     bind("optVolume", "volume", el => Number(el.value));
     $("optVolume").addEventListener("change", () => PI.fx.Sound.play("pop"));
     bind("optAmbience", "ambience", el => el.checked, () => PI.fx.Sound.setAmbience(S().settings.ambience && S().settings.sound));
+    bind("optMusic", "music", el => el.checked, () => { PI.fx.Sound.ensure(); PI.fx.Music.set(S().settings.music); });
+    bind("optMusicVolume", "musicVolume", el => Number(el.value));
     bind("optShake", "shake", el => Number(el.value));
     $("optShake").addEventListener("change", () => PI.fx.Shake.add(0.5));   // preview the chosen strength
     bind("optReduceMotion", "reduceMotion", el => el.checked, () => ui().refreshStructure());
@@ -217,6 +222,7 @@
     const unlockAudio = () => {
       if (S().settings.sound && S().settings.ambience) PI.fx.Sound.setAmbience(true);
       else if (PI.fx.Sound.ctx) PI.fx.Sound.ensure();
+      if (S().settings.music) PI.fx.Music.start();
       document.removeEventListener("pointerdown", unlockAudio);
       document.removeEventListener("keydown", unlockAudio);
     };

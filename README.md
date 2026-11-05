@@ -39,7 +39,8 @@ npm run serve        # http://localhost:8080
 
 - **Keyboard:** `Space`/`Enter` pats the focused penguin, `1`–`6` switch tabs, `B` buys all upgrades, `M` cycles the buy amount and `P` focuses the penguin. Arrow keys move between tabs, and dialogs keep focus and close with `Esc`.
 - **Touch:** on phones, the first tap on an upgrade or colony member shows its details. A second tap (or the Buy button) buys it.
-- **Settings:** volume, fireside ambience, screen-shake strength, reduce motion (defaults to your OS setting), particles, scientific notation, and text size up to 150%.
+- **Music:** calm lofi, synthesized live in the browser (no audio files): warm electric-piano chords with a little tape wobble, soft bass, a sparse melody with echo, gentle swung drums and vinyl crackle. It drifts between chord progressions and never loops exactly. It starts on your first click or key press, since browsers don't allow sound before that.
+- **Settings:** volume, lofi music and its own volume, fireside ambience, screen-shake strength, reduce motion (defaults to your OS setting), particles, scientific notation, and text size up to 150%.
 - **Effects:** feedback is scaled by importance, screen shake fades on its own, and nothing flashes.
 
 ## Saves

@@ -33,7 +33,7 @@
   function defaultSettings() {
     return {
       particles: true, scientific: false,
-      sound: true, volume: 0.5, ambience: false,
+      sound: true, volume: 0.5, ambience: false, music: true, musicVolume: 0.5,
       shake: 0.6, reduceMotion: prefersReducedMotion, textSize: 1,
     };
   }
@@ -675,6 +675,7 @@
     const ds = defaultSettings(), inSet = obj(data.settings);
     Object.keys(ds).forEach(k => { if (typeof inSet[k] === typeof ds[k]) s.settings[k] = inSet[k]; });
     s.settings.volume = Math.min(1, Math.max(0, s.settings.volume));
+    s.settings.musicVolume = Math.min(1, Math.max(0, s.settings.musicVolume));
     s.settings.shake = Math.min(1, Math.max(0, s.settings.shake));
     if (!TEXT_SIZES.includes(s.settings.textSize)) s.settings.textSize = 1;
     s.lastTick = num(data.lastTick) || now();
