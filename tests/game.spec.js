@@ -52,6 +52,18 @@ test("hovering with x10 shows the row's new count and output, and the preview ma
   await expect(chick).toHaveClass(/previewing/);
   await expect(chick.locator(".owned")).toHaveText("30");
   expect(await eachText()).not.toBe(eachNow);                 // passing the 25 milestone doubles output
+  const totalOf = t => t.split("/s")[0];
+  await page.locator('#buyMode [data-n="1"]').click();        // below a milestone, x1 still raises the row's total
+  await page.evaluate(() => { const g = window.penguinIdle; g.state.buildings.chick = 30; g.engine.recompute(); g.engine.bus.emit("structure"); });
+  await page.mouse.move(5, 5);
+  const total30 = totalOf(await eachText());
+  await page.locator('#buyMode [data-n="10"]').click();
+  await chick.hover();
+  await expect(chick.locator(".owned")).toHaveText("40");
+  expect(totalOf(await eachText())).not.toBe(total30);
+  await page.evaluate(() => { const g = window.penguinIdle; g.state.buildings.chick = 20; g.engine.recompute(); g.engine.bus.emit("structure"); });
+  await chick.hover();
+  await expect(chick.locator(".owned")).toHaveText("30");
   await page.mouse.move(5, 5);
   await expect(chick).not.toHaveClass(/previewing/);
   await expect(chick.locator(".owned")).toHaveText("20");
@@ -170,6 +182,75 @@ test("migrating to a chosen shore", async ({ page }) => {
   const s = await state(page, () => ({ shore: window.penguinIdle.state.shore, migrations: window.penguinIdle.state.migrations, feathers: window.penguinIdle.state.feathersEarned }));
   expect(s).toEqual({ shore: "krillbay", migrations: 1, feathers: 10 });
   await expect(page.locator("#shorePill")).toContainText("Krill Bay");
+  // The scenery and weather change with the shore
+  await expect(page.locator("#colony")).toHaveAttribute("data-shore", "krillbay");
+  await expect(page.locator("#colony .sea")).toHaveCount(1);
+  expect(await state(page, () => window.PI.fx.Particles.weather)).toBe("bubbles");
+});
+
+test("residents chat with each other in speech bubbles", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  await page.evaluate(() => { const g = window.penguinIdle; g.state.buildings.chick = 40; g.engine.recompute(); g.engine.bus.emit("structure"); });
+  await expect.poll(() => page.evaluate(() => window.PI.ui.chatNow()), { timeout: 10000 }).toBe(true);
+  const bubble = page.locator("#colony .chat-bubble");
+  await expect(bubble).toHaveCount(1, { timeout: 8000 });
+  expect((await bubble.textContent()).length).toBeGreaterThan(0);
+  await expect(page.locator("#colony .waddler.talking")).toHaveCount(1);
+  // The bubble stays inside the scene
+  const [c, b] = await Promise.all([page.locator("#colony").boundingBox(), bubble.boundingBox()]);
+  expect(b.x).toBeGreaterThanOrEqual(c.x);
+  expect(b.x + b.width).toBeLessThanOrEqual(c.x + c.width + 1);
+  await expect(bubble).toHaveCount(0, { timeout: 30000 });   // the chat finishes…
+  await expect.poll(() => page.locator("#waddlers [data-busy]").count(), { timeout: 30000 }).toBe(0);   // …and everyone goes back to wandering
+});
+
+test("the colony works: residents fetch fish to the basket, props make fish, and the basket shows the fish count", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  await page.evaluate(() => { const g = window.penguinIdle; Object.assign(g.state.buildings, { chick: 10, fisher: 5, trawler: 2 }); g.state.fish = 5000; g.engine.recompute(); g.engine.bus.emit("structure"); });
+  await expect(page.locator("#fishPile span")).toHaveCount(3);                      // ceil(log10(5001) × 0.7)
+  await expect(page.locator('#props [data-id="trawler"]')).toHaveAttribute("title", /^2 Lantern Boats: .+ fish\/s \(\d+% of the colony's catch\)$/);
+  await page.evaluate(() => PI.ui.propNow());
+  await expect(page.locator("#colony .fly-fish").first()).toBeAttached();
+  test.setTimeout(60000);
+  expect(await page.evaluate(() => PI.ui.workNow())).toBe(true);
+  const worker = await page.locator("#waddlers [data-job]").first().elementHandle();
+  await expect(page.locator("#waddlers .w-held")).toBeAttached({ timeout: 20000 });  // holding a rod or a fish
+  await expect(page.locator("#colony .catch-pop")).toBeAttached({ timeout: 30000 }); // delivered: "+N" over the basket
+  await expect.poll(() => worker.evaluate(w => w.dataset.job || ""), { timeout: 15000 }).toBe("");   // the first worker goes back to wandering
+  // Spending fish empties the basket; reduce motion keeps everyone still
+  await page.evaluate(() => { const g = window.penguinIdle; for (const id in g.state.buildings) g.state.buildings[id] = 0; g.state.fish = 0; g.state.settings.reduceMotion = true; g.engine.recompute(); });
+  await expect(page.locator("#fishPile span")).toHaveCount(0, { timeout: 3000 });
+  await expect(page.locator("#iceHole")).toBeHidden();
+  expect(await page.evaluate(() => PI.ui.workNow())).toBe(false);
+});
+
+test("the big penguin talks: a hello for new players, and the first of a kind is welcomed", async ({ page }) => {
+  await page.goto("/");
+  const say = page.locator("#penguinSay");
+  await expect(say).toBeVisible({ timeout: 5000 });
+  await expect(say).toHaveText("Hello! Pat me to catch fish!");
+  await page.evaluate(() => { window.penguinIdle.state.fish = 1000; });
+  await page.locator("#buildings .building").first().click();
+  await expect(say).toHaveText("Welcome to the colony, Sleepy Chick!");
+  // It sits inside the panel and goes away on its own
+  const [panel, bubble] = await Promise.all([page.locator(".clicker").boundingBox(), say.boundingBox()]);
+  expect(bubble.x).toBeGreaterThanOrEqual(panel.x);
+  expect(bubble.x + bubble.width).toBeLessThanOrEqual(panel.x + panel.width + 1);
+  await expect(say).toBeHidden({ timeout: 10000 });
+});
+
+test("every shore has its own scenery and weather (?shore= preview)", async ({ page }) => {
+  const seen = new Set();
+  for (const [shore, weather] of [["home", "snow"], ["blizzard", "blizzard"], ["harbour", "rain"], ["quiethollow", "fluff"]]) {
+    await page.goto(`/?shore=${shore}`);
+    await expect(page.locator("#colony")).toHaveAttribute("data-shore", shore);
+    expect(await state(page, () => window.PI.fx.Particles.weather)).toBe(weather);
+    seen.add(await page.locator("#colony").evaluate(el => getComputedStyle(el).backgroundImage));
+  }
+  expect(seen.size).toBe(4);   // every sky is different
+  expect(await state(page, () => window.penguinIdle.state.shore)).toBe("home");   // previewing doesn't move you
 });
 
 test("penguin letters can be answered for a reward", async ({ page }) => {

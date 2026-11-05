@@ -166,7 +166,8 @@
       body: `<p>You were away for <b>${PI.fmtTime(offline.away)}</b>. The colony kept the fire going and fished at ${Math.round(offline.eff * 100)}% pace,
              catching <b>🐟 ${fmt(offline.earned)}</b>.</p>
              ${offline.away > offline.cap ? `<p class="muted">Time away counts for up to ${offline.cap / 3600} hours.</p>` : ""}`,
-      actions: [{ label: "Cozy!", primary: true, cancel: true }],
+      actions: [{ label: "Cozy!", primary: true, cancel: true,
+        onClick: () => setTimeout(() => PI.penguin.say(["Welcome back! We missed you!", "You're home! We saved you some fish.", "There you are! The fire's still warm."][Math.floor(Math.random() * 3)], true), 300) }],
     });
   }
   let welcomeModal = null;

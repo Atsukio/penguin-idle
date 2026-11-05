@@ -119,21 +119,102 @@
     P.sleeping = false;
     btn().classList.remove("sleeping");
     flash("startle", 700);
+    chance(0.6, LINES.wake, true);
     P.nextIdle = Date.now() + 8000;
   }
 
-  function onPat() {
+  function onPat(d) {
     const now = Date.now();
     P.lastPat = now;
     if (P.sleeping) { wake(); return; }
     flash("happy", 380);
     flash("spring", 900);
+    if (d && d.crit) chance(0.4, LINES.crit);
     P.patTimes.push(now);
     while (P.patTimes.length && now - P.patTimes[0] > 2000) P.patTimes.shift();
     if (P.patTimes.length >= 8) {   // patted quickly: excited, with the odd heart
+      if (!btn().classList.contains("excited")) chance(0.35, LINES.excited);
       flash("excited", 1600);
       if (Math.random() < 0.25) { const h = headPoint(); PI.fx.burst(h.x, h.y, 2, ["💕", "💗"]); }
     }
+  }
+
+  // ---------- Speech: a bubble by the penguin's head, used sparingly ----------
+  const pick = a => a[Math.floor(Math.random() * a.length)];
+  const LINES = {
+    excited: ["Hehe, that tickles!", "More pats, please!", "Wheee!", "Best. Day. Ever.", "So many pats!"],
+    crit: ["Big catch!", "Whoa, look at that one!", "That's a whopper!", "Now THAT's a fish!"],
+    goldenSpawn: ["Ooh, shiny!", "A golden fish!", "Quick, catch it!", "Did you see that?!"],
+    golden: ["We got it!", "Lucky us!", "Golden!", "Ooh, it's sparkly!"],
+    wake: ["Huh? I'm awake!", "Wasn't sleeping. Just resting my eyes.", "Oh! Hello again!", "Was I snoring?"],
+    sleep: ["zzz… five more fish…", "zzz… cocoa…", "mmm… krill…"],
+    upgrade: ["Ooh, fancy!", "That's handy!", "Look at us go!"],
+    memory: ["We'll remember this one!", "One for the scrapbook!", "What a moment!"],
+    outfit: ["How do I look?", "Snazzy!", "I feel fabulous."],
+    newFriend: ["Hello, new friend!", "Welcome, welcome!", "The more the merrier!"],
+    idle: ["Cocoa's still warm…", "I love it here.", "What a cozy day.", "Hmm-hmm-hmm ♪", "Just thinking about fish.",
+      "Did you know penguins can't fly? I'm working on it.", "Pat me if you like. No pressure.", "The colony looks lovely today."],
+    night: ["Look at all the stars…", "Sleepy o'clock soon.", "The fire's so warm.", "Goodnight, colony…"],
+    mug: ["*sip* Ahh.", "Perfect cocoa."],
+    migrate: ["I think we're ready to migrate…", "I can feel the feathers calling."],
+  };
+  const SHORE_LINES = {
+    home: ["Home sweet ice!", "Nothing beats Home Ice."],
+    krillbay: ["I can smell the krill from here!", "Krill Bay! Bring a big net."],
+    sunnycove: ["Sunglasses on!", "So warm and golden here."],
+    blizzard: ["Brrr! Scarves on, everyone!", "I can't see my own feet!"],
+    aurorafields: ["Look at the sky!", "The lights are dancing!"],
+    quiethollow: ["So peaceful here…", "Shh. The trees are napping."],
+    harbour: ["So many boats!", "Smells like fish and adventure."],
+    rookery: ["Hello, elders!", "Granny's stories are the best."],
+  };
+  const SEASON_LINES = {
+    sunlit: ["The sun never sets this week!"], awareness: ["Everyone's thinking about penguins!"],
+    worldpenguin: ["Happy World Penguin Day!"], midwinter: ["Happy Midwinter! Pass the fish pie."],
+  };
+
+  let sayTimer = 0, lastSaid = 0;
+  // priority: big moments interrupt; small remarks wait their turn
+  function say(text, important = false) {
+    const el = document.getElementById("penguinSay");
+    if (!el || document.hidden) return false;
+    const now = Date.now();
+    if (!important && (now - lastSaid < 7000 || !el.classList.contains("hidden"))) return false;
+    lastSaid = now;
+    el.textContent = text;
+    el.classList.remove("hidden", "pop");
+    void el.offsetWidth;
+    el.classList.add("pop");
+    place(el);
+    clearTimeout(sayTimer);
+    sayTimer = setTimeout(() => el.classList.add("hidden"), 2200 + text.length * 50);
+    return true;
+  }
+  // Up and to the right of the head, kept inside the panel, with the tail pointing at the beak
+  function place(el) {
+    const panel = el.offsetParent, svg = document.getElementById("penguinSvg");
+    if (!panel || !svg) return;
+    const pr = panel.getBoundingClientRect(), r = svg.getBoundingClientRect();
+    const ax = r.left + r.width * 0.68 - pr.left, ay = r.top + r.height * 0.22 - pr.top;
+    const w = el.offsetWidth;
+    const left = Math.max(8, Math.min(pr.width - w - 8, ax - 16));
+    el.style.left = `${left}px`;
+    el.style.top = `${Math.max(4, ay - el.offsetHeight - 6)}px`;
+    el.style.setProperty("--tail", `${ax - left}px`);
+  }
+  const chance = (p, lines, important) => Math.random() < p && say(pick(lines), important);
+
+  function idleLine() {
+    const pool = [...LINES.idle];
+    const shore = SHORE_LINES[S().shore];
+    if (shore) pool.push(...shore);
+    const season = E.M.season;
+    if (season && SEASON_LINES[season.id]) pool.push(...SEASON_LINES[season.id], ...SEASON_LINES[season.id]);
+    if (document.getElementById("colony").classList.contains("night")) pool.push(...LINES.night, ...LINES.night);
+    if (S().cosmetics.item === "mug") pool.push(...LINES.mug);
+    const pf = E.pendingFeathers();
+    if (pf > 0 && pf >= Math.max(1, S().feathersEarned)) pool.push(...LINES.migrate, ...LINES.migrate);
+    return pick(pool);
   }
 
   const IDLE_ACTIONS = [
@@ -155,6 +236,11 @@
       btn().classList.add("sleeping");
       lookAt(null);
       PI.fx.Sound.play("yawn");
+      P.nextSleepTalk = now + rand(4000, 9000);
+    }
+    if (P.sleeping && now >= P.nextSleepTalk) {   // the odd mumble in its sleep
+      chance(0.5, LINES.sleep);
+      P.nextSleepTalk = now + rand(30000, 60000);
     }
     if (!P.sleeping && now - P.lastPat > 4000 && now >= P.nextIdle && now >= P.busyUntil) {
       const options = IDLE_ACTIONS.filter(a => !a.needs || a.needs());
@@ -162,6 +248,7 @@
       flash(a.cls, a.ms);
       P.busyUntil = now + a.ms;
       P.nextIdle = now + rand(8000, 16000);
+      if (Math.random() < 0.3) say(idleLine());
     }
   }
 
@@ -180,9 +267,30 @@
       P.lookUntil = Date.now() + 2500;
       lookAt(d);
       flash("surprised", 1200);
+      chance(0.5, LINES.goldenSpawn, true);
     });
+    // Big moments
+    const on = (ev, fn) => PI.bus.on(ev, d => { if (!P.sleeping) fn(d || {}); });
+    on("golden", d => { if (!d.auto) chance(0.5, LINES.golden, true); });
+    on("buyBuilding", d => {
+      const b = PI.data.B_BY_ID[d.id];
+      if (S().buildings[d.id] === d.n) say(`Welcome to the colony, ${b.name}${d.n > 1 ? "s" : ""}!`, true);   // the first of a kind
+      else chance(0.08, LINES.newFriend);
+    });
+    on("milestone", d => { if (!d.quiet) say(`Our ${d.b.name}s are on a roll!`, true); });
+    on("buyUpgrade", () => chance(0.12, LINES.upgrade));
+    on("achievements", () => chance(0.5, LINES.memory));
+    on("outfit", () => chance(0.7, LINES.outfit, true));
+    on("migrate", () => setTimeout(() => say(`A new shore! ${pick(SHORE_LINES[S().shore] || SHORE_LINES.home)}`, true), 600));
+    on("letterBonus", () => say("What a lovely care package!", true));
+    window.addEventListener("resize", () => { const el = document.getElementById("penguinSay"); if (el && !el.classList.contains("hidden")) place(el); });
     setInterval(tick, 250);
+    // A hello on arrival: a nudge for brand-new players, a greeting for everyone else
+    setTimeout(() => {
+      if (document.querySelector(".modal")) return;
+      say(S().stats.clicks === 0 ? "Hello! Pat me to catch fish!" : pick(["Hi again!", "Oh, you're back!", "Hello, friend!"]), true);
+    }, 1500);
   }
 
-  PI.penguin = { init, render, onPat, get sleeping() { return P.sleeping; } };
+  PI.penguin = { init, render, onPat, say, get sleeping() { return P.sleeping; } };
 })(window.PI = window.PI || {});

@@ -16,6 +16,20 @@
   // =====================================================================
   // Canvas particle system (one canvas for snow, bits, number pops, rings and flying fish)
   // =====================================================================
+  // Weather for each shore: how often a particle appears and what it looks like
+  const fall = speed => (innerHeight + 30) / speed;   // seconds to cross the screen
+  const rise = speed => (innerHeight + 30) / speed;
+  const WEATHER = {
+    snow: { rate: 2.5, make: () => { const vy = rand(25, 55); return { kind: "flake", x: rand(0, innerWidth), y: -10, vx: rand(-6, 10), vy, life: fall(vy), size: rand(1.5, 3.5), alpha: rand(0.4, 0.8), color: "#fff" }; } },
+    blizzard: { rate: 22, make: () => { const vy = rand(110, 190); return { kind: "flake", x: rand(-innerWidth * 0.6, innerWidth), y: -10, vx: rand(120, 220), vy, life: fall(vy), size: rand(1, 2.6), alpha: rand(0.3, 0.7), color: "#eef4ff", sway: 1.2 }; } },
+    fluff: { rate: 1.1, make: () => { const vy = rand(12, 24); return { kind: "flake", x: rand(0, innerWidth), y: -10, vx: rand(-4, 4), vy, life: fall(vy), size: rand(3, 5), alpha: rand(0.35, 0.65), color: "#fff", sway: 0.6 }; } },
+    rain: { rate: 9, make: () => { const vy = rand(380, 480); return { kind: "drop", x: rand(0, innerWidth + 60), y: -20, vx: -40, vy, life: fall(vy), alpha: rand(0.15, 0.3), color: "#b9c8e8" }; } },
+    sparkle: { rate: 1.6, make: () => ({ kind: "glint", x: rand(0, innerWidth), y: rand(innerHeight * 0.2, innerHeight), vx: rand(-4, 4), vy: rand(-14, -6), life: rand(2.5, 4.5), size: rand(1.5, 3), alpha: rand(0.5, 0.9), color: "#ffd27a" }) },
+    motes: { rate: 1.8, make: () => ({ kind: "glint", x: rand(0, innerWidth), y: rand(0, innerHeight), vx: rand(-8, 8), vy: rand(-10, 4), life: rand(3, 6), size: rand(1, 2.2), alpha: rand(0.4, 0.8), color: Math.random() < 0.6 ? "#8ff0c4" : "#c3a6ff" }) },
+    bubbles: { rate: 1.8, make: () => { const vy = -rand(20, 40); return { kind: "bubble", x: rand(0, innerWidth), y: innerHeight + 10, vx: 0, vy, life: rise(-vy) * rand(0.4, 0.9), size: rand(2, 5), alpha: rand(0.3, 0.6), color: "#bfeff0", sway: 0.5 }; } },
+    feathers: { rate: 0.5, make: () => { const vy = rand(18, 30); return { kind: "emoji", text: "🪶", x: rand(0, innerWidth), y: -20, vx: rand(-10, 10), vy, rot: rand(-1, 1), vr: rand(-0.8, 0.8), life: fall(vy), size: rand(12, 18), alpha: rand(0.35, 0.6) }; } },
+  };
+
   const Particles = {
     canvas: null, ctx: null, dpr: 1, list: [], pool: [], running: false, last: 0, snowAcc: 0,
     MAX: 400,
@@ -50,7 +64,15 @@
       requestAnimationFrame(t => this.frame(t));
     },
 
+    // Each shore has its own weather (set by the colony scene). Rates are particles per second.
+    weather: "snow",
+    setWeather(id) { this.weather = WEATHER[id] ? id : "snow"; this.start(); },
     snowWanted() { return S().settings.particles && motionOK(); },
+    spawnWeather(dt) {
+      const w = WEATHER[this.weather];
+      this.snowAcc += dt * w.rate;
+      while (this.snowAcc >= 1) { this.snowAcc -= 1; this.get(w.make()); }
+    },
 
     frame(t) {
       const dt = Math.min(0.05, (t - this.last) / 1000);
@@ -59,13 +81,7 @@
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, innerWidth, innerHeight);
 
-      if (this.snowWanted()) {   // gentle snowfall, ~2.5 flakes a second
-        this.snowAcc += dt * 2.5;
-        while (this.snowAcc >= 1) {
-          this.snowAcc -= 1;
-          this.get({ kind: "flake", x: rand(0, innerWidth), y: -10, vx: rand(-6, 10), vy: rand(25, 55), life: (innerHeight + 20) / 40, size: rand(1.5, 3.5), alpha: rand(0.4, 0.8) });
-        }
-      }
+      if (this.snowWanted()) this.spawnWeather(dt);
 
       for (let i = this.list.length - 1; i >= 0; i--) {
         const p = this.list[i];
@@ -84,20 +100,33 @@
           p.y += p.vy * dt;
           p.rot += p.vr * dt;
         }
-        if (p.kind === "flake") p.x += Math.sin(p.age * 1.5 + p.size) * 0.3;
+        if (p.kind === "flake" || p.kind === "bubble") p.x += Math.sin(p.age * 1.5 + p.size) * (p.sway || 0.3);
 
         let alpha = p.alpha;
         let scale = 1;
         if (p.kind === "num") { alpha = k < 0.15 ? k / 0.15 : 1 - (k - 0.15) / 0.85; scale = k < 0.15 ? 0.6 + (k / 0.15) * 0.5 : 1.1 - Math.min(0.1, (k - 0.15)); }
         if (p.kind === "bit") alpha = 1 - k;
         if (p.kind === "ring") alpha = 1 - k;
+        if (p.kind === "glint") alpha = p.alpha * Math.sin(Math.PI * k) * (0.6 + 0.4 * Math.sin(p.age * 6 + p.size));   // fade in, twinkle, fade out
+        if (p.kind === "bubble") alpha = p.alpha * Math.min(1, (1 - k) * 4);
 
         ctx.save();
         ctx.globalAlpha = Math.max(0, alpha);
         ctx.translate(p.x, p.y);
         if (p.kind === "flake") {
-          ctx.fillStyle = "#fff";
+          ctx.fillStyle = p.color;
           ctx.beginPath(); ctx.arc(0, 0, p.size, 0, Math.PI * 2); ctx.fill();
+        } else if (p.kind === "drop") {
+          ctx.strokeStyle = p.color; ctx.lineWidth = 1.2; ctx.lineCap = "round";
+          ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(p.vx * 0.03, p.vy * 0.03); ctx.stroke();
+        } else if (p.kind === "glint") {
+          ctx.fillStyle = p.color; ctx.shadowColor = p.color; ctx.shadowBlur = 8;
+          const s = p.size;   // a soft four-pointed sparkle
+          ctx.beginPath(); ctx.moveTo(0, -s * 2); ctx.quadraticCurveTo(0, 0, s * 2, 0); ctx.quadraticCurveTo(0, 0, 0, s * 2);
+          ctx.quadraticCurveTo(0, 0, -s * 2, 0); ctx.quadraticCurveTo(0, 0, 0, -s * 2); ctx.fill();
+        } else if (p.kind === "bubble") {
+          ctx.strokeStyle = p.color; ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.arc(0, 0, p.size, 0, Math.PI * 2); ctx.stroke();
         } else if (p.kind === "ring") {
           const r = 10 + k * 90;
           ctx.strokeStyle = p.color; ctx.lineWidth = 3;

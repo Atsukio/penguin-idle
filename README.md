@@ -19,20 +19,20 @@ npm run serve        # http://localhost:8080
 | System | What it does |
 | --- | --- |
 | Patting | Pat the penguin for fish. Some pats are **Big Catches** (×10 or more). Fish fly up into the counter as you pat. |
-| The big penguin | It blinks, follows your cursor, squints happily when patted, gets excited if you pat quickly, sips cocoa and waves when idle, dozes off if left alone, and notices golden fish. |
+| The big penguin | It blinks, follows your cursor, squints happily when patted, gets excited if you pat quickly, sips cocoa and waves when idle, dozes off if left alone, and notices golden fish. It also talks now and then: greeting you, reacting to fast pats, Big Catches and golden fish, welcoming the first of each colony member, cheering milestones, remarking on the shore, season or night sky, and mumbling in its sleep. |
 | Colony (12 tiers) | Sleepy Chicks, Scarf-Wrapped Fishers, Cocoa Igloos, Lantern Boats, Net-Knitting Circles and more. New arrivals waddle into the scene. Buy x1 / x10 / x100 / Max. With x10 or more selected, hovering a row shows its count and output after the purchase, highlighted. |
 | Upgrades (123) | Seven themed tiers per colony member, plus patting, whole-colony, golden-fish, synergy and scrapbook upgrades. Each has its own icon. **Buy all** buys every affordable one. |
 | Workshop | 12 levelled research projects bought with fish. They reset each migration. |
 | Golden fish | A rare fish swims by: a Lucky Catch, a Cocoa Rush, a Flipper Flurry or (late game) an Aurora Blessing. |
 | Migration (prestige) | Reset for Emperor Feathers (∛(lifetime fish ÷ 1T)). Each feather ever earned gives +2% production. |
-| Shores | Each migration lands on a shore with a twist, like *Krill Bay* (Krill Gardens ×5) or *Blizzard Pass* (no golden fish, +50% feathers). |
+| Shores | Each migration lands on a shore with a twist, like *Krill Bay* (Krill Gardens ×5) or *Blizzard Pass* (no golden fish, +50% feathers). Every shore has its own landscape and weather: gentle snow at Home Ice, sea bubbles at Krill Bay, sunshine sparkles at Sunny Cove, a whiteout at Blizzard Pass, glowing motes under the Aurora Fields, big soft flakes among the pines of Quiet Hollow, rain over the Busy Harbour and drifting feathers at the Elders' Rookery. Preview one with `?shore=harbour`. |
 | Heirloom Tree | A permanent skill tree bought with feathers: 🏕️ Hearth, 🧤 Flipper and 🌙 Wanderer branches, with prerequisites, levels, capstones and free refunds. |
 | Helpers | Hire penguins with feathers to auto-buy upgrades, colony members and research, catch golden fish, or migrate for you. Each can be switched off. |
 | Mailbox | Three gentle daily goals from colony friends, with a care package for answering all three. No streaks to lose. |
 | Wardrobe | Hats, scarves and held items for the big penguin, unlocked by memories, progress and seasonal events. |
 | Seasons | Real-date events (Antarctic calendar): Sunlit Festival, Penguin Awareness Week, World Penguin Day and Midwinter Feast. Each has a bonus and a wardrobe gift. Preview one with `?season=midwinter`. |
 | Memories | 79 achievements, each giving +1% production. |
-| Scene | Huts, igloos, boats and balloons appear as you build. It's night in the colony when it's night for you, and penguins huddle by the fire. |
+| Scene | Huts, igloos, boats and balloons appear as you build, and the colony visibly works: residents fish at the ice hole, pop into huts and igloos, or catch fish thrown from the boats and the orca, then carry them to the basket by the fire (with a "+" for what the colony caught meanwhile). Each prop makes fish in its own way, and the busiest earners act most often. Hover a prop to see its share of the catch. The basket's pile grows with your fish count. It's night in the colony when it's night for you, and penguins huddle by the fire. Every so often two residents meet up for a little chat in speech bubbles, about fish, the weather, the shore they're on, the night sky or the current season. |
 | Offline progress | Earns 25% of normal production while you're away (up to 150% with upgrades). This also covers the computer sleeping with the game still open. A tab left open in the background keeps earning at the full rate. |
 
 ## Accessibility and comfort

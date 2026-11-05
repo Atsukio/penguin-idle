@@ -41,16 +41,24 @@
       <button id="bigPenguin" class="big-penguin" aria-label="Pat the penguin to catch fish (Space or Enter)">
         <svg id="penguinSvg" viewBox="0 -10 200 230" width="200" height="230" aria-hidden="true"></svg>
       </button>
+      <div class="say-bubble hidden" id="penguinSay" role="status" aria-live="polite"></div>
       <div class="click-info">+<span id="clickPower">1</span> fish per pat</div>
       <div class="colony" id="colony" aria-hidden="true">
         <div class="lights" id="lights"></div>
         <div class="aurora" id="aurora"></div>
         <div class="stars"></div>
+        <div class="land land-back" id="landBack"></div>
         <div class="ground"></div>
+        <div class="land land-front" id="landFront"></div>
         <div class="props" id="props"></div>
+        <div class="work">
+          <span class="ice-hole hidden" id="iceHole"></span>
+          <span class="basket" id="fishBasket"><span class="pile" id="fishPile"></span><span class="basket-body">🧺</span></span>
+        </div>
         <div class="decor-layer" id="sceneDecor"></div>
         <div class="fire"><span class="glow"></span><span class="flame">🔥</span></div>
         <div class="waddlers" id="waddlers"></div>
+        <div class="land land-over" id="landOver"></div>
         <span class="shore-pill" id="shorePill"></span>
       </div>
     </section>
