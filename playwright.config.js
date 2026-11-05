@@ -1,5 +1,6 @@
 // Browser tests. Locally you can reuse an installed browser instead of downloading one:
 //   PW_CHANNEL=msedge npm test        (or chrome)
+// Locally only two browsers run at once so the computer stays usable; PW_WORKERS=4 npm test for more.
 const { defineConfig, devices } = require("@playwright/test");
 
 const channel = process.env.PW_CHANNEL || undefined;
@@ -8,6 +9,7 @@ module.exports = defineConfig({
   testDir: "tests",
   timeout: 30_000,
   fullyParallel: true,
+  workers: process.env.PW_WORKERS ? Number(process.env.PW_WORKERS) : process.env.CI ? undefined : 2,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: { baseURL: "http://localhost:4173", trace: "retain-on-failure" },

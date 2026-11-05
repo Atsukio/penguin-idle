@@ -477,8 +477,15 @@ h2 { font-size: 1.1rem; margin: 16px 0 8px; letter-spacing: .01em; }
 .toasts { position: fixed; right: max(16px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom)); z-index: 60; display: flex; flex-direction: column; gap: 8px; }
 .toast {
   background: var(--panel-2); border: 1px solid var(--gold); border-radius: 14px; padding: 10px 16px; max-width: 320px;
-  box-shadow: var(--shadow); animation: toastIn .45s var(--ease-pop);
+  box-shadow: var(--shadow); animation: toastIn .45s var(--ease-pop); cursor: pointer;
 }
+.toasts.left { right: auto; left: max(16px, env(safe-area-inset-left)); }
+.toasts.left .toast { animation-name: toastInLeft; }
+.toasts.left .toast.out { animation-name: toastOutLeft; }
+@keyframes toastInLeft { from { transform: translateX(-120%); opacity: 0; } }
+@keyframes toastOutLeft { to { transform: translateX(-30%); opacity: 0; } }
+/* Phones: not enough room for two bottom stacks side by side, so milestones sit at the top */
+@media (max-width: 700px) { .toasts.left { bottom: auto; top: max(16px, env(safe-area-inset-top)); } }
 .toast.out { animation: toastOut .35s var(--ease-out) forwards; }
 .toast b { color: var(--gold); }
 @keyframes toastIn { from { transform: translateX(120%); opacity: 0; } }

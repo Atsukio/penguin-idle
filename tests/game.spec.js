@@ -581,3 +581,40 @@ test("a throttled background tab still earns at full rate", async ({ page }) => 
   await expect.poll(() => state(page, () => window.penguinIdle.state.fish)).toBeGreaterThan(fps * 59);
   await expect(page.locator(".modal")).toHaveCount(0);
 });
+
+test("milestone toasts appear on the left, and clicking any toast dismisses it", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  await page.evaluate(() => { const g = window.penguinIdle; g.state.fish = 1e6; g.state.buildings.chick = 9; g.engine.recompute(); g.engine.buyBuilding("chick", 1); });
+  const ms = page.locator("#milestoneToasts .toast", { hasText: "Milestone!" });
+  await expect(ms).toBeVisible();
+  await expect(page.locator("#toasts .toast", { hasText: "Milestone!" })).toHaveCount(0);
+  const box = await ms.boundingBox();
+  expect(box.x).toBeLessThan(page.viewportSize().width / 2);
+  await ms.click();
+  await expect(ms).toHaveCount(0, { timeout: 1000 });
+});
+
+test("next feather target sits past the feathers already earned", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  // An earlier run earned 5 feathers at a higher rate; this run's lifetime alone is only worth 2
+  const r = await page.evaluate(() => {
+    const g = window.penguinIdle; g.state.lifetimeFish = 8e12; g.state.feathersEarned = 5; g.engine.recompute();
+    return { at: g.engine.nextFeatherAt(), pend: g.engine.pendingFeathers() };
+  });
+  expect(r.pend).toBe(0);
+  expect(r.at).toBeCloseTo(216e12, -10);   // 6 feathers = 6³ × 1e12
+});
+
+test("Foreman Waddles buys cheaper members while the best value is far off", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  // A Fisher is the better value but out of reach, and nothing is earning, so saving up would take forever
+  await page.evaluate(() => {
+    const g = window.penguinIdle; const s = g.state;
+    s.buildings.chick = 1; s.fish = 60; s.feathersEarned = 0; s.helpers.foreman = true; g.engine.recompute();
+  });
+  await expect.poll(() => state(page, () => window.penguinIdle.state.buildings.chick), { timeout: 5000 }).toBeGreaterThan(1);
+  expect(await state(page, () => window.penguinIdle.state.buildings.fisher || 0)).toBe(0);
+});

@@ -94,13 +94,18 @@
   // =====================================================================
   // Toasts (memories are grouped so a burst of unlocks doesn't bury the screen)
   // =====================================================================
-  function toast(html) {
-    const box = $("toasts");
+  // side "left" is for milestones, so they don't pile up with everything else on the right.
+  // Clicking a toast (anywhere but its button) dismisses it.
+  function toast(html, side = "right") {
+    const box = $(side === "left" ? "milestoneToasts" : "toasts");
     const el = document.createElement("div");
     el.className = "toast";
     el.innerHTML = html;
+    el.title = "Click to dismiss";
     box.appendChild(el);
-    const dismiss = () => { el.classList.add("out"); setTimeout(() => el.remove(), 350); };
+    let gone = false;
+    const dismiss = () => { if (gone) return; gone = true; el.classList.add("out"); setTimeout(() => el.remove(), 350); };
+    el.addEventListener("click", e => { if (!e.target.closest("button, a, input")) dismiss(); });
     setTimeout(dismiss, 4500);
     while (box.children.length > 4) box.firstChild.remove();
   }
@@ -1336,7 +1341,7 @@
     bus.on("letters", () => { if (currentTab === "home") renderLetters(); updateBadges(); });
     bus.on("outfit", () => { if (currentTab === "home") renderWardrobe(); });
     bus.on("buyBuilding", d => arrival(d.id));
-    bus.on("milestone", d => toast(`<b>Milestone!</b> ${d.b.plural} now catch ${d.mult === 2 ? "twice" : `${+d.mult.toFixed(2)}×`} as many fish.`));
+    bus.on("milestone", d => toast(`<b>Milestone!</b> ${d.b.plural} now catch ${d.mult === 2 ? "twice" : `${+d.mult.toFixed(2)}×`} as many fish.`, "left"));
     bus.on("buyAll", d => toast(`🛍️ Bought <b>${d.count}</b> upgrade${d.count > 1 ? "s" : ""}.`));
     bus.on("golden", d => toast(d.auto ? `📯 Lookout Lumi caught a golden fish! ${d.msg}` : d.msg));
     bus.on("achievements", list => queueMemories(list));

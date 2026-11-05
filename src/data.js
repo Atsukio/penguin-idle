@@ -463,7 +463,7 @@
     { id: "shopkeeper", icon: "🛒", name: "Shopkeeper Pip",  cost: 15,  every: 1,
       desc: "Buys upgrades for you as soon as you can afford them, cheapest first." },
     { id: "foreman",    icon: "👷", name: "Foreman Waddles", cost: 40,  every: 1,
-      desc: "Buys colony members for you, always picking the best value for your fish." },
+      desc: "Buys colony members for you: the best value you can afford, saving up when a better one is nearly in reach." },
     { id: "tinker",     icon: "🔨", name: "Tinker Bo",       cost: 200,  every: 2,
       desc: "Levels up Workshop research for you, cheapest first." },
     { id: "lookout",    icon: "📯", name: "Lookout Lumi",    cost: 500, every: 1,

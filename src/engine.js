@@ -197,7 +197,9 @@
   // instead of collapsing to zero. A square root let feathers compound into a runaway.
   const featherTotalFor = lifetime => Math.floor(Math.cbrt(lifetime / FEATHER_SCALE) * M.featherGain);
   const pendingFeathers = () => Math.max(0, featherTotalFor(S.lifetimeFish) - S.feathersEarned);
-  const nextFeatherAt = () => Math.pow((featherTotalFor(S.lifetimeFish) + 1) / M.featherGain, 3) * FEATHER_SCALE;
+  // Aim past the feathers already earned: after a run with a higher feather rate (Blizzard Pass), the
+  // lifetime total can sit below feathersEarned, and the target would otherwise creep up with no feather.
+  const nextFeatherAt = () => Math.pow((Math.max(featherTotalFor(S.lifetimeFish), S.feathersEarned) + 1) / M.featherGain, 3) * FEATHER_SCALE;
   const availableUpgrades = () => UPGRADES.filter(u => !has(u.id) && u.unlocked(S)).sort((a, b) => upgradeCost(a) - upgradeCost(b));
   // The cheapest colony member or upgrade you can't afford yet: what you're saving up for
   function nextGoal() {
@@ -529,6 +531,23 @@
     return best;
   }
 
+  // Foreman Waddles: saves up for the best value when it's under ~30s of income away, otherwise buys the
+  // best value he can afford right now (so cheaper members keep getting bought while a big one is far off).
+  const FOREMAN_SAVE_SECS = 30;
+  function foremanPick() {
+    let best = null, bestScore = Infinity, aff = null, affScore = Infinity;
+    BUILDINGS.forEach((b, i) => {
+      if (!buildingVisible(b, i)) return;
+      const cost = costOf(b, S.buildings[b.id], 1);
+      const score = cost / Math.max(1e-9, buildingFps(b.id));
+      if (score < bestScore) { bestScore = score; best = b; }
+      if (cost <= S.fish && score < affScore) { affScore = score; aff = b; }
+    });
+    if (!best || best === aff) return best;
+    const gap = costOf(best, S.buildings[best.id], 1) - S.fish;
+    return gap / Math.max(1e-9, fishPerSecond(false)) <= FOREMAN_SAVE_SECS ? null : aff;
+  }
+
   function runHelpers(dt) {
     HELPERS.forEach(h => {
       if (!helperOn(h.id)) return;
@@ -539,7 +558,7 @@
       if (h.id === "shopkeeper") did = buyAllUpgrades(null, true);
       if (h.id === "foreman") {
         for (let k = 0; k < 25; k++) {
-          const b = bestBuilding();
+          const b = foremanPick();
           if (!b || !buyBuilding(b.id, 1, null, true)) break;
           did++;
         }
