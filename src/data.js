@@ -461,33 +461,35 @@
   const totalColony = s => Object.values(s.buildings).reduce((a, b) => a + b, 0);
 
   const ACHIEVEMENTS = [];
-  const ach = (id, name, desc, check, icon, badge = "") => ACHIEVEMENTS.push({ id, name, desc, check, icon, badge });
+  // prog(s, E) => [current, target] shows progress on locked memories; omitted for one-off goals
+  const ach = (id, name, desc, check, icon, badge = "", prog = null) => ACHIEVEMENTS.push({ id, name, desc, check, icon, badge, prog });
   [[1, "First Catch", "🎏"], [100, "Snack Time", "🍣"], [1e4, "Full Pantry", "🥫"], [1e6, "Millionfish", "💰"], [1e9, "Billion Bellies", "🏦"],
    [1e12, "Trillion Tails", "🐳"], [1e15, "Ocean of Plenty", "🌋"], [1e18, "Fish Singularity", "🌌"]].forEach(([n, name, icon]) =>
-    ach(`fish_${n}`, name, `Catch ${fmt(n)} fish in total.`, s => s.lifetimeFish >= n, icon));
+    ach(`fish_${n}`, name, `Catch ${fmt(n)} fish in total.`, s => s.lifetimeFish >= n, icon, "", s => [s.lifetimeFish, n]));
   [[1, "Hatching", "🥚"], [10, "Huddling", "🫂"], [100, "Waddling", "🐾"], [1e3, "Thriving", "🌻"], [1e5, "Bustling", "🎪"], [1e7, "Unstoppable", "🚂"], [1e9, "Fish Blizzard", "🌀"]].forEach(([n, name, icon]) =>
-    ach(`fps_${n}`, name, `Reach ${fmt(n)} fish per second.`, (s, E) => E.fishPerSecond(false) >= n, icon));
+    ach(`fps_${n}`, name, `Reach ${fmt(n)} fish per second.`, (s, E) => E.fishPerSecond(false) >= n, icon, "", (s, E) => [E.fishPerSecond(false), n]));
   [[1, "Gentle Pat", "👋"], [100, "Head Scratches", "🤗"], [1000, "Best Friends", "💞"], [10000, "Inseparable", "♾️"]].forEach(([n, name, icon]) =>
-    ach(`click_${n}`, name, `Pat the penguin ${fmt(n)} time${n > 1 ? "s" : ""}.`, s => s.stats.clicks >= n, icon));
+    ach(`click_${n}`, name, `Pat the penguin ${fmt(n)} time${n > 1 ? "s" : ""}.`, s => s.stats.clicks >= n, icon, "", s => [s.stats.clicks, n]));
   BUILDINGS.forEach(b => {
     [[1, ""], [50, "A Village of "], [100, "A Kingdom of "]].forEach(([n, pre]) =>
       ach(`b_${b.id}_${n}`, n === 1 ? `First ${b.name}` : `${pre}${b.plural}`, `Own ${n} ${n > 1 ? b.plural : b.name}.`,
-        s => s.buildings[b.id] >= n, b.icon, String(n)));
+        s => s.buildings[b.id] >= n, b.icon, String(n), s => [s.buildings[b.id], n]));
   });
   [[1, "Shiny!", "💫"], [7, "Lucky Penguin", "🍀"], [27, "Gold Rush", "🏺"], [77, "Sunbeam Flipper", "🌅"]].forEach(([n, name, icon]) =>
-    ach(`gold_${n}`, name, `Catch ${n} golden fish.`, s => s.stats.goldenClicks >= n, icon));
+    ach(`gold_${n}`, name, `Catch ${n} golden fish.`, s => s.stats.goldenClicks >= n, icon, "", s => [s.stats.goldenClicks, n]));
   [[1, "The Long Walk", "👣"], [5, "Seasoned Traveller", "🧳"], [25, "Eternal March", "🗻"]].forEach(([n, name, icon]) =>
-    ach(`mig_${n}`, name, `Migrate ${n} time${n > 1 ? "s" : ""}.`, s => s.migrations >= n, icon));
-  ach("idle", "Penguin Nap", "Come back after more than an hour away.", s => s.stats.longestAway >= 3600, "😴");
-  ach("allb", "The Whole Family", "Own at least one of every colony member.", s => BUILDINGS.every(b => s.buildings[b.id] > 0), "👪");
+    ach(`mig_${n}`, name, `Migrate ${n} time${n > 1 ? "s" : ""}.`, s => s.migrations >= n, icon, "", s => [s.migrations, n]));
+  ach("idle", "Penguin Nap", "Come back after more than an hour away.", s => s.stats.longestAway >= 3600, "😴", "", s => [s.stats.longestAway, 3600, "time"]);
+  ach("allb", "The Whole Family", "Own at least one of every colony member.", s => BUILDINGS.every(b => s.buildings[b.id] > 0), "👪", "", s => [BUILDINGS.filter(b => s.buildings[b.id] > 0).length, BUILDINGS.length]);
   ach("res_1", "Tinkerer", "Research something in the Workshop.", s => Object.keys(s.research).length > 0, "🔧");
   ach("res_max", "Master Craftsman", "Max out a Workshop project.", s => RESEARCH.some(r => (s.research[r.id] || 0) >= r.max), "🛠️");
   ach("syn_1", "Better Together", "Buy a synergy upgrade.", s => s.upgrades.some(id => id.startsWith("syn_")), "🎎");
-  ach("syn_all", "One Big Happy Colony", "Buy every synergy upgrade.", s => SYNERGIES.every((_, i) => s.upgrades.includes(`syn_${i}`)), "🏯");
+  ach("syn_all", "One Big Happy Colony", "Buy every synergy upgrade.", s => SYNERGIES.every((_, i) => s.upgrades.includes(`syn_${i}`)), "🏯", "", s => [SYNERGIES.filter((_, i) => s.upgrades.includes(`syn_${i}`)).length, SYNERGIES.length]);
   ach("crit_1", "Big Catch!", "Land a Big Catch.", s => s.stats.bigCatches >= 1, "🐡");
-  ach("crit_100", "Trophy Wall", "Land 100 Big Catches.", s => s.stats.bigCatches >= 100, "🏆");
+  ach("crit_100", "Trophy Wall", "Land 100 Big Catches.", s => s.stats.bigCatches >= 100, "🏆", "", s => [s.stats.bigCatches, 100]);
   ach("tree_cap", "Branching Out", "Learn a capstone heirloom.", s => TREE.some(n => n.capstone && (s.heritage[n.id] || 0) > 0), "🌳");
-  ach("tree_all", "Family Tree", "Learn every heirloom at least once.", s => TREE.every(n => n.id === "spirit" || (s.heritage[n.id] || 0) > 0), "🌲");
+  ach("tree_all", "Family Tree", "Learn every heirloom at least once.", s => TREE.every(n => n.id === "spirit" || (s.heritage[n.id] || 0) > 0), "🌲", "",
+    s => [TREE.filter(n => n.id !== "spirit" && (s.heritage[n.id] || 0) > 0).length, TREE.filter(n => n.id !== "spirit").length]);
 
   // ---------- Helpers: permanent automation bought with feathers (switch each on or off) ----------
   const HELPERS = [
@@ -595,25 +597,25 @@
   ];
 
   // ---------- More memories for the newer systems ----------
-  ach("helpers_all", "Many Flippers", "Hire every helper.", s => HELPERS.every(h => s.helpers[h.id]), "🙌");
-  ach("shores_3", "Explorer", "Visit 3 different shores.", s => s.shoresVisited.length >= 3, "🧭");
-  ach("shores_all", "Globetrotter", "Visit every shore.", s => SHORES.every(sh => s.shoresVisited.includes(sh.id)), "🌏");
+  ach("helpers_all", "Many Flippers", "Hire every helper.", s => HELPERS.every(h => s.helpers[h.id]), "🙌", "", s => [HELPERS.filter(h => s.helpers[h.id]).length, HELPERS.length]);
+  ach("shores_3", "Explorer", "Visit 3 different shores.", s => s.shoresVisited.length >= 3, "🧭", "", s => [s.shoresVisited.length, 3]);
+  ach("shores_all", "Globetrotter", "Visit every shore.", s => SHORES.every(sh => s.shoresVisited.includes(sh.id)), "🌏", "", s => [SHORES.filter(sh => s.shoresVisited.includes(sh.id)).length, SHORES.length]);
   ach("letters_1", "Pen Pal", "Answer a penguin letter.", s => s.stats.lettersClaimed >= 1, "✉️");
-  ach("letters_30", "Faithful Friend", "Answer 30 penguin letters.", s => s.stats.lettersClaimed >= 30, "📬");
+  ach("letters_30", "Faithful Friend", "Answer 30 penguin letters.", s => s.stats.lettersClaimed >= 30, "📬", "", s => [s.stats.lettersClaimed, 30]);
   ach("outfit", "Dressed Up", "Change the big penguin's outfit.", s => s.stats.outfitChanges >= 1, "🪞");
   ach("season_1", "Festive Spirit", "Catch a golden fish during a seasonal event.", s => s.stats.seasonalCatches >= 1, "🎊");
-  ach("deliver_100", "Basket Brigade", "Watch the colony carry 100 catches to the basket.", s => s.stats.deliveries >= 100, "🧺");
-  ach("deliver_1000", "Overflowing Basket", "Watch the colony carry 1,000 catches to the basket.", s => s.stats.deliveries >= 1000, "🪣");
+  ach("deliver_100", "Basket Brigade", "Watch the colony carry 100 catches to the basket.", s => s.stats.deliveries >= 100, "🧺", "", s => [s.stats.deliveries, 100]);
+  ach("deliver_1000", "Overflowing Basket", "Watch the colony carry 1,000 catches to the basket.", s => s.stats.deliveries >= 1000, "🪣", "", s => [s.stats.deliveries, 1000]);
   ach("prop_look", "Curious Flipper", "See how a colony member makes its fish (hover or tap it in the scene).", s => s.stats.propLooks >= 1, "🔎");
   ach("name_1", "Friends by Name", "Give a resident a name.", s => (s.names || []).some(Boolean), "📛");
-  ach("name_all", "Everyone Has a Name", "Name six residents.", s => (s.names || []).filter(Boolean).length >= 6, "🏷️");
-  ach("music_hour", "Lofi Listener", "Listen to the colony's music for an hour.", s => s.stats.musicSeconds >= 3600, "🎧");
-  ach("rub_100", "Belly Rubs", "Pat the penguin 100 times by rubbing it.", s => s.stats.rubPats >= 100, "🫳");
-  ach("nap_hour", "Power Nap", "Let the colony nap for an hour in total (💤 in the top bar).", s => s.stats.napSeconds >= 3600, "🌙");
-  ach("lullaby_max", "Sweet Dreams", "Learn every Lullaby in the Workshop.", s => (s.research.lullaby || 0) >= 8, "🪷");
-  ach("moonlit", "Moonlit Sky", "Nap for 24 hours in total and fill the sky with nap stars.", s => s.stats.napSeconds >= 24 * 3600, "🎑");
-  ach("nap_day", "Hibernation Champion", "Let the colony nap for 8 hours in total.", s => s.stats.napSeconds >= 8 * 3600, "🛌");
-  ach("rub_5000", "Belly Rub Expert", "Pat the penguin 5,000 times by rubbing it.", s => s.stats.rubPats >= 5000, "💆");
+  ach("name_all", "Everyone Has a Name", "Name six residents.", s => (s.names || []).filter(Boolean).length >= 6, "🏷️", "", s => [(s.names || []).filter(Boolean).length, 6]);
+  ach("music_hour", "Lofi Listener", "Listen to the colony's music for an hour.", s => s.stats.musicSeconds >= 3600, "🎧", "", s => [s.stats.musicSeconds, 3600, "time"]);
+  ach("rub_100", "Belly Rubs", "Pat the penguin 100 times by rubbing it.", s => s.stats.rubPats >= 100, "🫳", "", s => [s.stats.rubPats, 100]);
+  ach("nap_hour", "Power Nap", "Let the colony nap for an hour in total (💤 in the top bar).", s => s.stats.napSeconds >= 3600, "🌙", "", s => [s.stats.napSeconds, 3600, "time"]);
+  ach("lullaby_max", "Sweet Dreams", "Learn every Lullaby in the Workshop.", s => (s.research.lullaby || 0) >= 8, "🪷", "", s => [s.research.lullaby || 0, 8]);
+  ach("moonlit", "Moonlit Sky", "Nap for 24 hours in total and fill the sky with nap stars.", s => s.stats.napSeconds >= 24 * 3600, "🎑", "", s => [s.stats.napSeconds, 24 * 3600, "time"]);
+  ach("nap_day", "Hibernation Champion", "Let the colony nap for 8 hours in total.", s => s.stats.napSeconds >= 8 * 3600, "🛌", "", s => [s.stats.napSeconds, 8 * 3600, "time"]);
+  ach("rub_5000", "Belly Rub Expert", "Pat the penguin 5,000 times by rubbing it.", s => s.stats.rubPats >= 5000, "💆", "", s => [s.stats.rubPats, 5000]);
 
   PI.fmt = fmt;
   PI.fmtTime = fmtTime;

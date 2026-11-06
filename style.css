@@ -442,6 +442,10 @@ h2 { font-size: 1.1rem; margin: 16px 0 8px; letter-spacing: .01em; }
 }
 .ach .name { font-weight: 800; }
 .ach .desc { font-size: .82rem; color: var(--muted); }
+.ach:not(.done) { opacity: .8; }
+.a-bar { height: 6px; border-radius: 4px; background: var(--border); margin-top: 5px; overflow: hidden; }
+.a-bar span { display: block; height: 100%; background: var(--gold); border-radius: 4px; }
+.a-num { font-size: .72rem; color: var(--muted); margin-top: 2px; font-variant-numeric: tabular-nums; }
 
 /* ---------- Settings / stats ---------- */
 .settings { display: grid; gap: 8px; }

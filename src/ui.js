@@ -625,9 +625,17 @@
   function renderAchievements() {
     const html = D.ACHIEVEMENTS.map(a => {
       const done = S().achievements.includes(a.id);
+      let prog = "";
+      if (!done && a.prog) {
+        const [cur, goal, kind] = a.prog(S(), E);
+        const c = Math.min(cur, goal), pct = Math.floor((c / goal) * 100);
+        const show = v => (kind === "time" ? fmtTime(v) : fmt(Math.floor(v)));
+        prog = `<div class="a-prog" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-label="Progress">
+          <div class="a-bar"><span style="width:${pct}%"></span></div><div class="a-num">${show(c)} / ${show(goal)}</div></div>`;
+      }
       return `<div class="ach ${done ? "done" : ""}">
         <div class="a-icon" aria-hidden="true">${a.icon}${a.badge ? `<span class="a-badge">${a.badge}</span>` : ""}</div>
-        <div><div class="name">${a.name}${done ? "" : ' <span class="visually-hidden">(locked)</span>'}</div><div class="desc">${a.desc}</div></div></div>`;
+        <div><div class="name">${a.name}${done ? "" : ' <span class="visually-hidden">(locked)</span>'}</div><div class="desc">${a.desc}</div>${prog}</div></div>`;
     }).join("");
     setHTML($("achievements"), html);
   }
