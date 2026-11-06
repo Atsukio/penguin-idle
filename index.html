@@ -74,7 +74,7 @@
         <button class="tab" role="tab" id="tabbtn-workshop" aria-controls="tab-workshop" aria-selected="false" tabindex="-1" data-tab="workshop">Workshop</button>
         <button class="tab" role="tab" id="tabbtn-heritage" aria-controls="tab-heritage" aria-selected="false" tabindex="-1" data-tab="heritage">Migration <span id="migrateBadge" class="pill hidden" aria-label="good time to migrate">!</span></button>
         <button class="tab" role="tab" id="tabbtn-home" aria-controls="tab-home" aria-selected="false" tabindex="-1" data-tab="home">Home <span id="homeBadge" class="pill hidden"></span></button>
-        <button class="tab" role="tab" id="tabbtn-achievements" aria-controls="tab-achievements" aria-selected="false" tabindex="-1" data-tab="achievements">Memories <span id="achCount" class="pill">0</span></button>
+        <button class="tab" role="tab" id="tabbtn-achievements" aria-controls="tab-achievements" aria-selected="false" tabindex="-1" data-tab="achievements">Memories <span id="achCount" class="pill">0</span> <span id="achClose" class="pill near-pill hidden" title="Memories over halfway"></span></button>
         <button class="tab" role="tab" id="tabbtn-stats" aria-controls="tab-stats" aria-selected="false" tabindex="-1" data-tab="stats">Settings <span id="newsBadge" class="pill news-dot hidden" aria-label="news">•</span></button>
       </div>
 
@@ -142,6 +142,7 @@
       <div class="tab-body hidden" role="tabpanel" id="tab-home" aria-labelledby="tabbtn-home">
         <h2>Mailbox</h2>
         <p class="muted">Friends from around the colony write in with small requests each day.</p>
+        <p class="muted letter-reset" id="letterReset" aria-live="off"></p>
         <div id="letters" class="letter-list"></div>
         <div id="letterBonus" class="letter-bonus"></div>
         <h2>Colony friends</h2>
@@ -154,6 +155,8 @@
 
       <div class="tab-body hidden" role="tabpanel" id="tab-achievements" aria-labelledby="tabbtn-achievements">
         <p class="muted">Every memory you collect adds 1% to fish production.</p>
+        <label class="check"><input type="checkbox" id="optHideDone"> Hide collected memories</label>
+        <div id="achNear" class="ach-near hidden"></div>
         <div id="achievements" class="ach-grid"></div>
       </div>
 

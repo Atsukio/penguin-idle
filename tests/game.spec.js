@@ -923,3 +923,43 @@ test("a nap streak forgives one missed day a week, shows on the nap screen, and 
   await expect(page.locator(".news").first().locator(".news-head")).toHaveText(["Napping", "Bedtime", "Rewards"]);
   await expect(page.locator(".news").nth(1).locator(".news-head")).toHaveCount(0);
 });
+
+test("locked memories show progress, a Nearly there row, hints, and the next-goal mention", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  await page.locator('[data-tab="achievements"]').click();
+  // A fresh game has nothing close to done
+  await expect(page.locator("#achNear")).toBeHidden();
+  const pats = page.locator(".ach", { hasText: "Head Scratches" });
+  await expect(pats.locator(".a-num")).toHaveText("0 / 100");
+  await expect(page.locator(".ach", { hasText: "Dressed Up" }).locator(".a-hint")).toContainText("Wardrobe");
+  // Get Head Scratches to 95 pats: it floats up, glows and is mentioned under the penguin
+  await page.evaluate(() => { const g = window.penguinIdle; g.state.stats.clicks = 95; });
+  await page.locator('[data-tab="colony"]').click();
+  await page.locator('[data-tab="achievements"]').click();
+  await expect(page.locator("#achNear .ach", { hasText: "Head Scratches" }).locator(".a-prog.hot")).toHaveCount(1);
+  await page.locator('[data-tab="colony"]').click();
+  await expect(page.locator("#nextGoal")).toContainText("Head Scratches 95%", { timeout: 8000 });
+});
+
+test("memories: hide collected, the close count, a Mailbox countdown, and the next-goal link", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  // Daily letters reset: a countdown to midnight is shown in the Mailbox
+  await page.locator('[data-tab="home"]').click();
+  await expect(page.locator("#letterReset")).toHaveText(/New letters in \d+h \d{2}m/);
+  // Hide collected: a collected memory disappears from the grid
+  await page.evaluate(() => { const g = window.penguinIdle; g.state.achievements.push("fish_1"); });
+  await page.locator('[data-tab="achievements"]').click();
+  await expect(page.locator("#achievements .ach", { hasText: "First Catch" })).toHaveCount(1);
+  await page.locator("#optHideDone").check();
+  await expect(page.locator("#achievements .ach", { hasText: "First Catch" })).toHaveCount(0);
+  await page.locator("#optHideDone").uncheck();
+  // Memory nearly done: the pill counts it and the next-goal line links to the tab
+  await page.evaluate(() => { window.penguinIdle.state.stats.clicks = 95; });
+  await page.locator('[data-tab="colony"]').click();
+  await expect(page.locator("#achClose")).toContainText("close", { timeout: 8000 });
+  await expect(page.locator("#nextGoal")).toHaveClass(/clickable/);
+  await page.locator("#nextGoal").click();
+  await expect(page.locator("#tab-achievements")).toBeVisible();
+});

@@ -35,7 +35,7 @@
     return {
       particles: true, scientific: false,
       sound: true, volume: 0.5, ambience: false, music: true, musicVolume: 0.5,
-      shake: 0.6, reduceMotion: prefersReducedMotion, textSize: 1, cozyCursor: true, holdToPat: true,
+      shake: 0.6, reduceMotion: prefersReducedMotion, textSize: 1, cozyCursor: true, holdToPat: true, hideDone: false,
       batterySaver: "auto",   // "auto" (when the battery is low), "on" or "off"
       autoNap: 0,             // nap by itself after this many idle minutes (0 = never)
       bedtime: "off",         // "start-end" hours when the colony naps after a minute left alone, e.g. "22-7"
@@ -566,7 +566,25 @@
     return true;
   }
 
+  // Seconds until the daily letters reset (the next local midnight, the same day boundary dayKey uses)
+  function secsToNewDay(date = new Date(now())) {
+    const next = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
+    return Math.max(0, (next - date) / 1000);
+  }
+
   // ---------- Achievements ----------
+  // Progress of one memory as { cur, goal, kind, frac }, or null if it is a one-off goal
+  function memoryProgress(a) {
+    if (!a.prog) return null;
+    const [cur, goal, kind] = a.prog(S, E);
+    return { cur: Math.min(cur, goal), goal, kind, frac: Math.max(0, Math.min(1, cur / goal)) };
+  }
+  // Locked memories that have a progress bar, closest to done first
+  function nearestMemories(limit = 3, minFrac = 0) {
+    return ACHIEVEMENTS.filter(a => a.prog && !S.achievements.includes(a.id))
+      .map(a => ({ a, ...memoryProgress(a) })).filter(m => m.frac >= minFrac && m.frac < 1)
+      .sort((x, y) => y.frac - x.frac).slice(0, limit);
+  }
   function checkAchievements() {
     const fresh = ACHIEVEMENTS.filter(a => !S.achievements.includes(a.id) && a.check(S, E));
     if (!fresh.length) return [];
@@ -904,7 +922,7 @@
     goldenDelay, goldenEffect,
     dayKey, ensureLetters, letterProgress, letterReward, claimLetter, claimLetterBonus,
     checkAchievements, runHelpers, tick, applyOffline,
-    encodeSave, decodeSave, save, load, SaveError, transferJSON, fromTransferJSON, nextGoal,
+    encodeSave, decodeSave, save, load, SaveError, transferJSON, fromTransferJSON, nextGoal, memoryProgress, nearestMemories, secsToNewDay,
   });
   PI.engine = E;
   PI.bus = bus;

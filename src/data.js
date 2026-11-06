@@ -482,12 +482,16 @@
   ach("idle", "Penguin Nap", "Come back after more than an hour away.", s => s.stats.longestAway >= 3600, "😴", "", s => [s.stats.longestAway, 3600, "time"]);
   ach("allb", "The Whole Family", "Own at least one of every colony member.", s => BUILDINGS.every(b => s.buildings[b.id] > 0), "👪", "", s => [BUILDINGS.filter(b => s.buildings[b.id] > 0).length, BUILDINGS.length]);
   ach("res_1", "Tinkerer", "Research something in the Workshop.", s => Object.keys(s.research).length > 0, "🔧");
-  ach("res_max", "Master Craftsman", "Max out a Workshop project.", s => RESEARCH.some(r => (s.research[r.id] || 0) >= r.max), "🛠️");
+  // Progress is the most-levelled Workshop project, measured against its own maximum
+  const bestResearch = s => RESEARCH.reduce((b, r) => ((s.research[r.id] || 0) / r.max > (s.research[b.id] || 0) / b.max ? r : b));
+  ach("res_max", "Master Craftsman", "Max out a Workshop project.", s => RESEARCH.some(r => (s.research[r.id] || 0) >= r.max), "🛠️", "",
+    s => { const b = bestResearch(s); return [s.research[b.id] || 0, b.max]; });
   ach("syn_1", "Better Together", "Buy a synergy upgrade.", s => s.upgrades.some(id => id.startsWith("syn_")), "🎎");
   ach("syn_all", "One Big Happy Colony", "Buy every synergy upgrade.", s => SYNERGIES.every((_, i) => s.upgrades.includes(`syn_${i}`)), "🏯", "", s => [SYNERGIES.filter((_, i) => s.upgrades.includes(`syn_${i}`)).length, SYNERGIES.length]);
   ach("crit_1", "Big Catch!", "Land a Big Catch.", s => s.stats.bigCatches >= 1, "🐡");
   ach("crit_100", "Trophy Wall", "Land 100 Big Catches.", s => s.stats.bigCatches >= 100, "🏆", "", s => [s.stats.bigCatches, 100]);
-  ach("tree_cap", "Branching Out", "Learn a capstone heirloom.", s => TREE.some(n => n.capstone && (s.heritage[n.id] || 0) > 0), "🌳");
+  ach("tree_cap", "Branching Out", "Learn a capstone heirloom.", s => TREE.some(n => n.capstone && (s.heritage[n.id] || 0) > 0), "🌳", "",
+    s => [TREE.filter(n => n.capstone && (s.heritage[n.id] || 0) > 0).length, TREE.filter(n => n.capstone).length]);
   ach("tree_all", "Family Tree", "Learn every heirloom at least once.", s => TREE.every(n => n.id === "spirit" || (s.heritage[n.id] || 0) > 0), "🌲", "",
     s => [TREE.filter(n => n.id !== "spirit" && (s.heritage[n.id] || 0) > 0).length, TREE.filter(n => n.id !== "spirit").length]);
 
@@ -616,6 +620,19 @@
   ach("moonlit", "Moonlit Sky", "Nap for 24 hours in total and fill the sky with nap stars.", s => s.stats.napSeconds >= 24 * 3600, "🎑", "", s => [s.stats.napSeconds, 24 * 3600, "time"]);
   ach("nap_day", "Hibernation Champion", "Let the colony nap for 8 hours in total.", s => s.stats.napSeconds >= 8 * 3600, "🛌", "", s => [s.stats.napSeconds, 8 * 3600, "time"]);
   ach("rub_5000", "Belly Rub Expert", "Pat the penguin 5,000 times by rubbing it.", s => s.stats.rubPats >= 5000, "💆", "", s => [s.stats.rubPats, 5000]);
+
+  // "How do I get this one?" hints for memories that have no progress bar
+  const ACH_HINTS = {
+    res_1: "Open the Workshop tab and buy a level of any project.",
+    syn_1: "Synergy upgrades appear in the upgrade list once you own 15 each of two particular colony members.",
+    crit_1: "Keep patting: every pat has a small chance of a Big Catch. Lucky Pats in the Workshop raise it.",
+    letters_1: "Open the Home tab's Mailbox: letters arrive each day. Reach a letter's goal, then claim it.",
+    outfit: "Open the Wardrobe and put something on the big penguin.",
+    season_1: "Seasonal events run on real dates (see the Wardrobe for the list). Catch a golden fish while one is on.",
+    prop_look: "Hover (or tap) a colony member in the scene to see how it makes fish.",
+    name_1: "In the Home tab, type a name for one of your residents (or tap 🎲).",
+  };
+  ACHIEVEMENTS.forEach(a => { if (ACH_HINTS[a.id]) a.hint = ACH_HINTS[a.id]; });
 
   PI.fmt = fmt;
   PI.fmtTime = fmtTime;

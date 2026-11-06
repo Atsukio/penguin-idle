@@ -28,6 +28,7 @@
     $("optParticles").checked = st.particles;
     $("optScientific").checked = st.scientific;
     $("optHoldToPat").checked = st.holdToPat;
+    $("optHideDone").checked = !!st.hideDone;
     $("optTextSize").value = String(st.textSize);
     $("optBatterySaver").value = st.batterySaver;
     $("optAutoNap").value = String(st.autoNap);
@@ -72,6 +73,7 @@
     bind("optCursor", "cozyCursor", el => el.checked);
     bind("optScientific", "scientific", el => el.checked, () => ui().refreshStructure());
     bind("optHoldToPat", "holdToPat", el => el.checked);
+    bind("optHideDone", "hideDone", el => el.checked, () => ui().renderTab(true));
     $("whatsNewBtn").addEventListener("click", openWhatsNew);
     $("moveBtn").addEventListener("click", openMove);
     bind("optTextSize", "textSize", el => Number(el.value));

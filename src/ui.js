@@ -623,21 +623,26 @@
   // Memories and stats
   // =====================================================================
   function renderAchievements() {
-    const html = D.ACHIEVEMENTS.map(a => {
+    const card = (a, extra = "") => {
       const done = S().achievements.includes(a.id);
       let prog = "";
-      if (!done && a.prog) {
-        const [cur, goal, kind] = a.prog(S(), E);
-        const c = Math.min(cur, goal), pct = Math.floor((c / goal) * 100);
-        const show = v => (kind === "time" ? fmtTime(v) : fmt(Math.floor(v)));
-        prog = `<div class="a-prog" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-label="Progress">
-          <div class="a-bar"><span style="width:${pct}%"></span></div><div class="a-num">${show(c)} / ${show(goal)}</div></div>`;
-      }
-      return `<div class="ach ${done ? "done" : ""}">
+      const p = !done && E.memoryProgress(a);
+      if (p) {
+        const pct = Math.floor(p.frac * 100);
+        const show = v => (p.kind === "time" ? fmtTime(v) : fmt(Math.floor(v)));
+        prog = `<div class="a-prog ${pct >= 90 ? "hot" : ""}" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-label="Progress">
+          <div class="a-bar"><span style="width:${pct}%"></span></div><div class="a-num">${show(p.cur)} / ${show(p.goal)}</div></div>`;
+      } else if (!done && a.hint) prog = `<div class="a-hint">💡 ${a.hint}</div>`;
+      return `<div class="ach ${done ? "done" : ""} ${extra}">
         <div class="a-icon" aria-hidden="true">${a.icon}${a.badge ? `<span class="a-badge">${a.badge}</span>` : ""}</div>
         <div><div class="name">${a.name}${done ? "" : ' <span class="visually-hidden">(locked)</span>'}</div><div class="desc">${a.desc}</div>${prog}</div></div>`;
-    }).join("");
-    setHTML($("achievements"), html);
+    };
+    // Memories that are more than halfway done float to a "Nearly there" row
+    const near = E.nearestMemories(3, 0.5);
+    $("achNear").classList.toggle("hidden", !near.length);
+    setHTML($("achNear"), near.length ? `<h3>Nearly there</h3><div class="ach-grid">${near.map(m => card(m.a, "near")).join("")}</div>` : "");
+    const hideDone = !!S().settings.hideDone;
+    setHTML($("achievements"), D.ACHIEVEMENTS.filter(a => !hideDone || !S().achievements.includes(a.id)).map(a => card(a)).join(""));
   }
 
   function renderStatsGraph() {
@@ -1283,13 +1288,16 @@
     if (currentTab === "colony") { renderUpgrades(full); tickUpgrades(); tickBuildings(); }
     if (currentTab === "workshop") tickResearch();
     if (currentTab === "heritage") { tickMigration(); if (full) { renderShores(); renderHelpers(); refreshTree(); } }
-    if (currentTab === "home") { renderLetters(); if (full) renderWardrobe(); }
+    if (currentTab === "home") { renderLetters(); renderLetterReset(); if (full) renderWardrobe(); }
     if (currentTab === "achievements" && full) renderAchievements();
     if (currentTab === "stats" && full) renderStats();
   }
 
   function updateBadges() {
     setText($("achCount"), `${S().achievements.length}/${D.ACHIEVEMENTS.length}`);
+    const close = nearMemoryList().length;
+    $("achClose").classList.toggle("hidden", !close);
+    setText($("achClose"), close ? `${close} close` : "");
     const claimable = S().letters.list.filter(l => !l.claimed && E.letterProgress(l) >= l.target).length
       + (S().letters.list.length && S().letters.list.every(l => l.claimed) && !S().letters.bonus ? 1 : 0);
     const lb = $("homeBadge");
@@ -1302,14 +1310,36 @@
   }
   const hasNews = () => S().seenVersion !== D.GAME_VERSION;
 
+  // Locked memories over halfway, recomputed about every two seconds rather than every frame
+  let nearCache = [], nearCacheAt = -Infinity;
+  function nearMemoryList() {
+    const t = E.now();
+    if (t - nearCacheAt > 2000) { nearCacheAt = t; nearCache = E.nearestMemories(99, 0.5); }
+    return nearCache.filter(m => !S().achievements.includes(m.a.id));
+  }
+
   // What you're saving up for, under the penguin
+  // Countdown to the daily letters reset (local midnight)
+  function renderLetterReset() {
+    const secs = E.secsToNewDay(new Date(E.now()));
+    const h = Math.floor(secs / 3600), mi = Math.floor((secs % 3600) / 60);
+    setText($("letterReset"), `New letters in ${h}h ${String(mi).padStart(2, "0")}m`);
+  }
   function renderNextGoal() {
     const g = E.nextGoal(), el = $("nextGoal");
-    el.classList.toggle("hidden", !g);
-    if (!g) return;
-    const eta = g.secs == null ? "" : g.secs < 1 ? " · any moment" : g.secs > 86400 * 2 ? "" : ` · about ${fmtTime(Math.max(1, g.secs))}`;
-    setText(el, `Next: ${g.icon} ${g.name} in 🐟 ${fmt(Math.ceil(g.need))}${eta}`);
-    el.title = `${g.name} costs 🐟 ${fmt(g.cost)}`;
+    // A memory that is nearly collected gets a mention too; clicking the line opens the Memories tab
+    const m = nearMemoryList().find(x => x.frac >= 0.8) || null;
+    if (!el.dataset.bound) {
+      el.dataset.bound = "1";
+      el.addEventListener("click", () => { if (el.classList.contains("clickable")) selectTab("achievements", true); });
+    }
+    el.classList.toggle("clickable", !!m);
+    el.classList.toggle("hidden", !g && !m);
+    if (!g && !m) return;
+    const eta = !g || g.secs == null ? "" : g.secs < 1 ? " · any moment" : g.secs > 86400 * 2 ? "" : ` · about ${fmtTime(Math.max(1, g.secs))}`;
+    const mem = m ? `📔 ${m.a.name} ${Math.floor(m.frac * 100)}%` : "";
+    setText(el, [g ? `Next: ${g.icon} ${g.name} in 🐟 ${fmt(Math.ceil(g.need))}${eta}` : "", mem].filter(Boolean).join(" · "));
+    el.title = [g ? `${g.name} costs 🐟 ${fmt(g.cost)}` : "", m ? `Nearly a new memory: ${m.a.name}. ${m.a.desc}` : ""].filter(Boolean).join(" · ");
   }
 
   function bumpCounter() {
