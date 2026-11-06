@@ -10,7 +10,7 @@
     BUILDINGS, B_BY_ID, UPGRADES, UP_BY_ID, RESEARCH, R_BY_ID, TREE, H_BY_ID, ACHIEVEMENTS,
     HELPERS, HELPER_BY_ID, SHORES, SHORE_BY_ID, SEASONS, SEASON_BY_ID, COSMETICS, LETTER_TYPES, LETTER_SENDERS,
     MILESTONES, COST_GROWTH, FEATHER_SCALE, FEATHER_BONUS, ACH_BONUS, SAVE_KEY, SAVE_VERSION, TEXT_SIZES, totalColony,
-    GAME_VERSION,
+    GAME_VERSION, NAP_BONUS, BEDTIMES, NAP_STARS,
   } = D;
 
   const MAX = 1e300;   // hard ceiling so numbers never overflow to Infinity (which JSON would save as null)
@@ -38,6 +38,7 @@
       shake: 0.6, reduceMotion: prefersReducedMotion, textSize: 1, cozyCursor: true, holdToPat: true,
       batterySaver: "auto",   // "auto" (when the battery is low), "on" or "off"
       autoNap: 0,             // nap by itself after this many idle minutes (0 = never)
+      bedtime: "off",         // "start-end" hours when the colony naps after a minute left alone, e.g. "22-7"
     };
   }
 
@@ -45,7 +46,7 @@
     return {
       clicks: 0, clickFish: 0, goldenClicks: 0, bigCatches: 0, longestAway: 0,
       buildingsBought: 0, upgradesBought: 0, researchBought: 0, lettersClaimed: 0, outfitChanges: 0, seasonalCatches: 0,
-      deliveries: 0, musicSeconds: 0, propLooks: 0, rubPats: 0, napSeconds: 0,
+      deliveries: 0, musicSeconds: 0, propLooks: 0, rubPats: 0, napSeconds: 0, napBonusFish: 0,
       startedAt: now(), runStartedAt: now(),
     };
   }
@@ -64,8 +65,10 @@
       names: [],           // names the player gave colony residents (up to NAME_SLOTS; "" = an unnamed slot)
       defaultNames: [],    // a cute name per slot for residents the player hasn't named (filled in by ensureDefaultNames)
       seasonalUnlocks: [], // season ids where a golden fish was caught
+      napStars: [],        // when each napped hour was finished (0 = before stars were dated)
+      napStreak: { day: "", secs: 0, last: "", count: 0, best: 0, grace: "" },   // today's nap time, days in a row with a proper nap, the last forgiven day
       letters: { day: "", list: [], bonus: false },
-      history: [],         // [timestamp, fish per second] samples for the Stats graph
+      history: [],         // [timestamp, fish per second, 1 if napping] samples for the Stats graph
       migrations: 0,
       buffs: [],
       stats: freshStats(),
@@ -126,7 +129,7 @@
       click: 1, clickFps: 0, global: 1, goldenFreq: 1, goldenDur: 1,
       luckyMult: 1, rushMult: 7, critChance: 0, critMult: 10, costMult: 1, upgradeCost: 1, researchCost: 1,
       offlineEff: 0.25, offlineMult: 1, offlineCapH: 24, autoRate: 0, achBonus: ACH_BONUS, featherPer: FEATHER_BONUS,
-      milestoneMult: 2, synergy: 1, featherGain: 1, keepTiers: 0, startFish: 0, aurora: false, noGolden: false,
+      milestoneMult: 2, synergy: 1, featherGain: 1, napMult: 1 + NAP_BONUS, keepTiers: 0, startFish: 0, aurora: false, noGolden: false,
       start: Object.fromEntries(BUILDINGS.map(b => [b.id, 0])),
     };
     TREE.forEach(n => { const L = nodeLevel(n.id); if (L > 0) n.apply(m, L, S); });
@@ -156,13 +159,18 @@
     M = m;
   }
 
+  // While the colony naps it fishes a little faster: a reward for giving up pats and golden fish
+  let napping = false;
+  const setNapping = on => { napping = !!on; };
+  const napMult = () => M.napMult;
+
   function buffMult(type) {
     const t = now();
     let k = 1;
     for (const b of S.buffs) if (b.type === type && b.until > t) k *= b.mult;
     return k;
   }
-  const fishPerSecond = (withBuffs = true) => (withBuffs ? Math.min(MAX, M.baseFps * buffMult("prod")) : M.baseFps);
+  const fishPerSecond = (withBuffs = true) => (withBuffs ? Math.min(MAX, M.baseFps * buffMult("prod") * (napping ? M.napMult : 1)) : M.baseFps);
   const buildingFps = id => M.bFps[id];
   // The feather bonus applies to the base pat only: fishPerSecond() already includes it,
   // and applying it twice made patting income grow with feathers² (a runaway the simulator caught).
@@ -390,6 +398,34 @@
     return true;
   }
 
+  // ---------- Nap streak ----------
+  const NAP_STREAK_SECS = 300;   // a nap day needs this much napping
+  function addNapTime(secs, date = new Date(now())) {
+    const ns = S.napStreak, today = dayKey(date);
+    if (ns.day !== today) { ns.day = today; ns.secs = 0; }
+    ns.secs += secs;
+    if (ns.secs < NAP_STREAK_SECS || ns.last === today) return false;
+    const gap = ns.last ? daysBetween(ns.last, today) : 0;
+    if (gap === 1) ns.count++;
+    else if (gap === 2 && graceFree(today)) { ns.count++; ns.grace = dayKey(new Date(date.getFullYear(), date.getMonth(), date.getDate() - 1)); }
+    else ns.count = 1;
+    ns.last = today;
+    const before = ns.best;
+    ns.best = Math.max(ns.best, ns.count);
+    bus.emit("napStreak", { count: ns.count, best: ns.best, mask: before < 7 && ns.best >= 7 });
+    return true;
+  }
+  // A streak survives one missed day a week: a gap of two days is fine if no day was forgiven in the last 7
+  const keyDate = k => { const [y, m, d] = k.split("-").map(Number); return new Date(y, m - 1, d); };
+  const daysBetween = (a, b) => Math.round((keyDate(b) - keyDate(a)) / 86400000);
+  const graceFree = today => !S.napStreak.grace || daysBetween(S.napStreak.grace, today) >= 7;
+  const napStreakNow = (date = new Date(now())) => {
+    const ns = S.napStreak;
+    if (!ns.last) return 0;
+    const today = dayKey(date), gap = daysBetween(ns.last, today);
+    return gap <= 1 || (gap === 2 && graceFree(today)) ? ns.count : 0;
+  };
+
   // ---------- Resident names ----------
   const NAME_SLOTS = 6;
   const cleanName = v => String(v == null ? "" : v).replace(/[\u0000-\u001f\u007f<>]/g, "").replace(/\s+/g, " ").trim().slice(0, 16);
@@ -433,7 +469,7 @@
     else S.buffs.push({ type, name, mult, until });
   }
 
-  function goldenEffect(pos = {}, auto = false) {
+  function goldenEffect(pos = {}, auto = false, force = null, quiet = false) {
     S.stats.goldenClicks++;
     const season = M.season;
     if (season) {
@@ -446,9 +482,9 @@
     }
     const d = M.goldenDur;
     const secs = base => Math.round(base * d);
-    const roll = Math.random();
+    const roll = force === "rush" ? 0.5 : Math.random();
     let msg, kind;
-    if (M.aurora && roll < 0.08) {
+    if (M.aurora && roll < 0.08 && !force) {
       kind = "aurora";
       addBuff("prod", "Aurora Blessing", 50, secs(30) * 1000);
       msg = `<b>Aurora Blessing!</b> The sky lights up: production ×50 for ${secs(30)}s`;
@@ -466,7 +502,7 @@
       addBuff("click", "Flipper Flurry", 77, secs(13) * 1000);
       msg = `<b>Flipper Flurry!</b> Pats are ×77 for ${secs(13)}s`;
     }
-    bus.emit("golden", { msg, kind, auto, x: pos.x, y: pos.y });
+    bus.emit("golden", { msg, kind, auto, quiet, x: pos.x, y: pos.y });
     bus.emit("buffs");
     return kind;
   }
@@ -603,9 +639,11 @@
   }
 
   // ---------- Per-frame update ----------
-  let autoTimer = 0, histTimer = 0;
+  let autoTimer = 0, histTimer = 0, napMinute = false;
   function tick(dt) {
-    gain(fishPerSecond() * dt);
+    const fps = fishPerSecond();
+    gain(fps * dt);
+    if (napping) { S.stats.napBonusFish += fps * dt * (1 - 1 / M.napMult); napMinute = true; }
     if (M.autoRate > 0) {
       autoTimer += dt;
       const step = 1 / M.autoRate;
@@ -617,7 +655,8 @@
     histTimer += dt;
     if (histTimer >= 60) {
       histTimer = 0;
-      S.history.push([t, fishPerSecond(false)]);
+      S.history.push(napMinute ? [t, fishPerSecond(false), 1] : [t, fishPerSecond(false)]);   // 1 = napped that minute
+      napMinute = false;
       if (S.history.length > HISTORY_LEN) S.history.splice(0, S.history.length - HISTORY_LEN);
     }
     S.lastTick = t;
@@ -748,6 +787,9 @@
     s.shore = SHORE_BY_ID[data.shore] ? data.shore : "home";
     s.nextShore = SHORE_BY_ID[data.nextShore] ? data.nextShore : "home";
     s.seasonalUnlocks = idList(data.seasonalUnlocks, SEASON_BY_ID);
+    s.napStars = (Array.isArray(data.napStars) ? data.napStars : []).slice(0, NAP_STARS).map(num);
+    const ns = obj(data.napStreak), day = v => (typeof v === "string" && /^\d{4}-\d\d-\d\d$/.test(v) ? v : "");
+    s.napStreak = { day: day(ns.day), secs: num(ns.secs), last: day(ns.last), count: Math.floor(num(ns.count)), best: Math.floor(num(ns.best)), grace: day(ns.grace) };
     const cos = obj(data.cosmetics);
     Object.keys(COSMETICS).forEach(slot => { if (COSMETICS[slot].some(c => c.id === cos[slot])) s.cosmetics[slot] = cos[slot]; });
     s.names = (Array.isArray(data.names) ? data.names : []).slice(0, NAME_SLOTS).map(cleanName);
@@ -762,7 +804,8 @@
       }));
     }
     s.history = (Array.isArray(data.history) ? data.history : [])
-      .filter(p => Array.isArray(p) && p.length === 2).map(([t, v]) => [num(t), num(v)]).slice(-HISTORY_LEN);
+      .filter(p => Array.isArray(p) && (p.length === 2 || p.length === 3))
+      .map(([t, v, n]) => (n === 1 ? [num(t), num(v), 1] : [num(t), num(v)])).slice(-HISTORY_LEN);
     const st = obj(data.stats);
     Object.keys(s.stats).forEach(k => { if (num(st[k]) > 0) s.stats[k] = num(st[k]); });
     const ds = defaultSettings(), inSet = obj(data.settings);
@@ -773,6 +816,7 @@
     if (!TEXT_SIZES.includes(s.settings.textSize)) s.settings.textSize = 1;
     if (!["auto", "on", "off"].includes(s.settings.batterySaver)) s.settings.batterySaver = "auto";
     if (![0, 5, 15, 30].includes(s.settings.autoNap)) s.settings.autoNap = 0;
+    if (!BEDTIMES.includes(s.settings.bedtime)) s.settings.bedtime = "off";
     s.lastTick = num(data.lastTick) || now();
     // Saves from before What's new existed have no seenVersion: those players get the news too
     s.seenVersion = typeof data.seenVersion === "string" ? data.seenVersion.slice(0, 16) : "";
@@ -851,11 +895,11 @@
     defaultSettings, freshState, recompute, replaceState,
     has, milestonesReached, nodeLevel, nodeCost, nodeReqsMet, spendableFeathers, helperOn,
     researchLevel, researchCost, researchUnlocked, upgradeCost, currentSeason,
-    buffMult, fishPerSecond, buildingFps, clickPower, costOf, maxAffordable, previewBuy, buildingVisible,
+    buffMult, setNapping, napMult, fishPerSecond, buildingFps, clickPower, costOf, maxAffordable, previewBuy, buildingVisible,
     featherTotalFor, pendingFeathers, nextFeatherAt, availableUpgrades, availableShores, bestBuilding,
     gain, clickPenguin, buyBuilding, buyUpgrade, buyAllUpgrades, buyResearch, learnNode, refundTree,
     hireHelper, toggleHelper, doMigrate, setNextShore,
-    cosmeticItem, cosmeticUnlocked, setOutfit,
+    cosmeticItem, cosmeticUnlocked, setOutfit, addNapTime, napStreakNow,
     NAME_SLOTS, cleanName, setName, residentNames, playerNames, suggestName, ensureDefaultNames,
     goldenDelay, goldenEffect,
     dayKey, ensureLetters, letterProgress, letterReward, claimLetter, claimLetterBonus,

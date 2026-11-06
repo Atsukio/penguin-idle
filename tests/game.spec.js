@@ -735,3 +735,191 @@ test("an hour of napping earns a memory and the Nightcap", async ({ page }) => {
   });
   expect(got).toEqual({ before: false, mem: true, cap: true });
 });
+
+test("napping fishes faster, shows its bonuses, and a golden fish waits for a long nap", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  await page.evaluate(() => { const g = window.penguinIdle; g.state.buildings.chick = 10; g.engine.recompute(); });
+  const awake = await state(page, () => window.penguinIdle.engine.fishPerSecond());
+  await page.evaluate(() => window.penguinIdle.state.buffs.push({ type: "prod", name: "Frenzy", mult: 7, until: window.penguinIdle.engine.now() + 10 * 60000 }));
+  await page.keyboard.press("z");
+  await expect(page.locator("#napScreen")).toBeVisible();
+  const napping = await state(page, () => window.penguinIdle.engine.fishPerSecond());
+  expect(napping / awake).toBeCloseTo(7 * 1.05, 5);
+  await expect(page.locator("#napBuffs")).toContainText("Nap bonus +5%");
+  await expect(page.locator("#napBuffs")).toContainText("Frenzy ×7 · 10m");
+  // Lullabies raise the bonus
+  await page.evaluate(() => { const g = window.penguinIdle; g.state.research.lullaby = 2; g.engine.recompute(); });
+  await expect(page.locator("#napBuffs")).toContainText("Nap bonus +15%");
+  // A short nap: no golden fish. A long one: one is waiting
+  await page.locator("#napWake").click();
+  await expect(page.locator("#goldenLayer .golden-fish")).toHaveCount(0);
+  expect(await state(page, () => window.penguinIdle.engine.fishPerSecond() / window.penguinIdle.engine.fishPerSecond(false))).toBeCloseTo(7, 5);   // bonus gone on waking
+  await page.keyboard.press("z");
+  await page.evaluate(() => window.penguinIdle.nap.sleptFor(4 * 60000));
+  await page.locator("#napWake").click();
+  await expect(page.locator("#goldenLayer .golden-fish")).toHaveCount(1);
+  await expect(page.locator("#toasts")).toContainText("A golden fish waited for you!");
+});
+
+test("an hour-long nap's golden fish brings a Cocoa Rush, and naps show up in Stats", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  await page.evaluate(() => { const g = window.penguinIdle; g.state.buildings.chick = 10; g.engine.recompute(); });
+  await page.keyboard.press("z");
+  await page.waitForTimeout(1500);
+  expect(await state(page, () => window.penguinIdle.state.stats.napBonusFish)).toBeGreaterThan(0);
+  await page.evaluate(() => window.penguinIdle.nap.sleptFor(61 * 60000));
+  await page.locator("#napWake").click();
+  await expect(page.locator("#toasts")).toContainText("Cocoa Rush");
+  await page.evaluate(() => document.querySelector("#goldenLayer .golden-fish").click());
+  expect(await state(page, () => window.penguinIdle.state.buffs.some(b => b.name === "Cocoa Rush"))).toBe(true);
+  // A napped minute is kept in the graph's history through a save and reload, and shaded
+  await page.evaluate(() => { const g = window.penguinIdle, t = g.engine.now();
+    g.state.history.push([t - 120000, 5], [t - 60000, 5, 1], [t, 6]); g.save(); });
+  await page.reload();
+  await closeModals(page);
+  expect(await state(page, () => window.penguinIdle.state.history.filter(p => p[2] === 1).length)).toBeGreaterThan(0);
+  await page.locator('[data-tab="stats"]').click();
+  await expect(page.locator("#statsGraph .g-nap").first()).toBeAttached();
+  await expect(page.locator("#stats")).toContainText("Extra fish from the nap bonus");
+});
+
+test("learning every Lullaby earns Sweet Dreams", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  const got = await page.evaluate(() => { const g = window.penguinIdle;
+    g.state.research.lullaby = 8; g.engine.recompute(); g.engine.checkAchievements();
+    return [g.state.achievements.includes("lullaby_max"), g.engine.M.napMult]; });
+  expect(got[0]).toBe(true);
+  expect(got[1]).toBeCloseTo(1.45, 5);
+});
+
+test("bedtime naps follow the clock, Lumi keeps golden fish, and naps leave stars", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  await page.keyboard.press("6");
+  await page.locator("#optBedtime").selectOption("23-7");
+  const hours = await page.evaluate(() => [22, 23, 3, 7, 12].map(h => window.penguinIdle.nap.isBedtime(new Date(2026, 0, 1, h))));
+  expect(hours).toEqual([false, true, true, false, false]);
+  await page.locator("#optBedtime").selectOption("21-7");
+  // Lumi keeps up to 3 golden fish during a nap, then hands them over on waking
+  await page.evaluate(() => { const g = window.penguinIdle; g.state.helpers.lookout = true; g.state.buildings.chick = 10; g.engine.recompute(); });
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("z");
+  for (let i = 0; i < 5; i++) { await page.evaluate(() => window.penguinIdle.nap.goldenNow()); await page.waitForTimeout(1100); }
+  const clicks = await state(page, () => window.penguinIdle.state.stats.goldenClicks);
+  await page.evaluate(() => window.penguinIdle.nap.sleptFor(60000));
+  await page.locator("#napWake").click();
+  expect(await state(page, () => window.penguinIdle.state.stats.goldenClicks)).toBe(clicks + 3);
+  await expect(page.locator("#toasts .wake-card")).toContainText("Lookout Lumi kept 3 golden fish");
+  await expect(page.locator("#toasts .wake-card")).toContainText("Slept");
+  // Five napped hours, five stars
+  await page.evaluate(() => { window.penguinIdle.state.stats.napSeconds = 5 * 3600 + 10; });
+  await expect(page.locator("#napStars span")).toHaveCount(5);
+  await page.reload();
+  await closeModals(page);
+  expect(await state(page, () => window.penguinIdle.state.settings.bedtime)).toBe("21-7");
+});
+
+test("notes wait for the wake card, stars remember their nap, and bedtime winds down", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  await page.evaluate(() => { const g = window.penguinIdle; g.state.buildings.chick = 10; g.engine.recompute(); });
+  await page.keyboard.press("z");
+  // A memory earned mid-nap, crossing the first napped hour (which dates star 1)
+  await page.evaluate(() => { const g = window.penguinIdle; g.state.stats.napSeconds = 3599; PI.ui.toast("💌 A note during the nap"); });
+  await page.waitForTimeout(1300);
+  expect(await state(page, () => window.penguinIdle.state.napStars.length)).toBe(1);
+  expect(await state(page, () => window.penguinIdle.state.napStars[0])).toBeGreaterThan(0);
+  await page.evaluate(() => window.penguinIdle.nap.sleptFor(60000));
+  await page.locator("#napWake").click();
+  await expect(page.locator("#toasts .toast")).toHaveCount(1);   // just the wake card at first
+  await expect(page.locator("#toasts .wake-card")).toBeVisible();
+  await expect(page.locator("#toasts")).toContainText("A note during the nap", { timeout: 4000 });
+  expect(await state(page, () => window.penguinIdle.state.achievements.includes("nap_hour"))).toBe(true);
+  await expect(page.locator("#toasts")).toContainText("🌙");   // Power Nap's memory note, after the card
+  // Tap the star
+  await expect(page.locator("#napStars span")).toHaveCount(1);
+  await page.locator("#napStars span").dispatchEvent("click");
+  await expect(page.locator("#toasts")).toContainText("Nap star 1");
+  // 24 hours of naps: a moonlit sky and a memory
+  await page.evaluate(() => { const g = window.penguinIdle; g.state.stats.napSeconds = 24 * 3600; g.engine.checkAchievements(); });
+  await expect(page.locator("#colony")).toHaveClass(/moonlit/);
+  expect(await state(page, () => window.penguinIdle.state.achievements.includes("moonlit"))).toBe(true);
+  // Bedtime at 10pm: 9:50pm winds down, 9:30pm and 10:05pm don't
+  await page.evaluate(() => { window.penguinIdle.state.settings.bedtime = "22-7"; });
+  const soon = await page.evaluate(() => [[21, 50], [21, 30], [22, 5]].map(([h, m]) => window.penguinIdle.nap.windDown(new Date(2026, 0, 1, h, m))));
+  expect(soon).toEqual([true, false, false]);
+  const dims = await page.evaluate(() => [[21, 50], [12, 0]].map(([h, m]) => {   // read straight away: the real clock re-checks every second
+    window.penguinIdle.nap.windDown(new Date(2026, 0, 1, h, m));
+    return document.documentElement.classList.contains("bedtime-soon");
+  }));
+  expect(dims).toEqual([true, false]);
+});
+
+test("nap streaks earn the Sleep Mask, stars are listed in Stats, and bedtime rests the battery", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  // Seven days in a row with 5+ minutes of napping each (a short nap doesn't count)
+  const streak = await page.evaluate(() => {
+    const E = window.penguinIdle.engine, out = [];
+    out.push(E.addNapTime(120, new Date(2026, 10, 1, 22)));
+    for (let d = 1; d <= 7; d++) out.push(E.addNapTime(400, new Date(2026, 10, d, 23)));
+    return { out, best: window.penguinIdle.state.napStreak.best, mask: E.cosmeticUnlocked("hat", "sleepmask"),
+      now: E.napStreakNow(new Date(2026, 10, 8, 9)), broken: E.napStreakNow(new Date(2026, 10, 10, 9)) };
+  });
+  expect(streak).toEqual({ out: [false, true, true, true, true, true, true, true], best: 7, mask: true, now: 7, broken: 0 });
+  await page.evaluate(() => window.penguinIdle.engine.setOutfit("hat", "sleepmask"));
+  await expect(page.locator("#penguinSvg .p-hat path")).toHaveCount(4);
+  // Stars listed in Stats, with dates
+  await page.evaluate(() => { const g = window.penguinIdle; g.state.stats.napSeconds = 3 * 3600; g.state.napStars = [0, Date.now(), Date.now()]; });
+  await page.locator('[data-tab="stats"]').click();
+  await expect(page.locator("#napStarList summary")).toHaveText("✦ Nap stars: 3 of 24");
+  await expect(page.locator("#napStarList li")).toHaveCount(3);
+  await expect(page.locator("#napStarList li").first()).toHaveText("Before the stars kept dates");
+  await expect(page.locator("#stats")).toContainText("Nap streak");
+  // Moon on the nap screen only once moonlit
+  await page.keyboard.press("z");
+  await expect(page.locator("#napMoon")).toBeHidden();
+  await page.evaluate(() => { window.penguinIdle.state.stats.napSeconds = 24 * 3600; });
+  await expect(page.locator("#napMoon")).toBeVisible();
+  await page.locator("#napWake").click();
+  // Auto battery saver rests at bedtime (checked straight away: the real clock re-checks every second)
+  const power = await page.evaluate(() => {
+    const g = window.penguinIdle; g.state.settings.bedtime = "22-7";
+    g.nap.windDown(new Date(2026, 0, 1, 23, 30)); const night = document.documentElement.classList.contains("power-saver");
+    g.nap.windDown(new Date(2026, 0, 1, 12, 0)); const day = document.documentElement.classList.contains("power-saver");
+    return [night, day];
+  });
+  expect(power).toEqual([true, false]);
+});
+
+test("a nap streak forgives one missed day a week, shows on the nap screen, and What's new is grouped", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  const counts = await page.evaluate(() => {
+    const E = window.penguinIdle.engine, st = window.penguinIdle.state.napStreak, out = [];
+    const nap = d => { E.addNapTime(400, new Date(2026, 10, d, 21)); out.push(st.count); };
+    nap(1); nap(2); nap(4);          // skipped the 3rd: forgiven
+    out.push(E.napStreakNow(new Date(2026, 10, 6, 9)));   // two days since: a second miss in a week isn't
+    nap(6);                          // so this starts again
+    nap(7); nap(8); nap(9); nap(10); nap(11); nap(12); nap(14);   // a week after the last forgiven day: forgiven again
+    return out;
+  });
+  expect(counts).toEqual([1, 2, 3, 0, 1, 2, 3, 4, 5, 6, 7, 8]);
+  // The streak and the Sleep Mask on the nap screen
+  await page.evaluate(() => { const g = window.penguinIdle, s = g.state.napStreak;
+    s.last = g.engine.dayKey(); s.count = 4; s.best = 8; g.engine.setOutfit("hat", "sleepmask"); });
+  await page.keyboard.press("z");
+  await expect(page.locator("#napBuffs")).toContainText("Nap streak: day 4");
+  await expect(page.locator("#napSvg .p-mask")).toBeAttached();
+  await page.waitForTimeout(2000);
+  expect(await page.evaluate(() => getComputedStyle(document.querySelector("#napSvg .p-mask")).transform)).not.toBe("none");
+  await page.locator("#napWake").click();
+  // What's new groups 4.3 under headings
+  await page.keyboard.press("6");
+  await page.locator("#whatsNewBtn").click();
+  await expect(page.locator(".news").first().locator(".news-head")).toHaveText(["Napping", "Bedtime", "Rewards"]);
+  await expect(page.locator(".news").nth(1).locator(".news-head")).toHaveCount(0);
+});

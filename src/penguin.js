@@ -14,6 +14,14 @@
   function hatMarkup() {
     const hat = E.cosmeticItem("hat", S().cosmetics.hat);
     if (hat.emoji) return `<text class="p-hat-emoji" x="100" y="40" text-anchor="middle" font-size="62">${hat.emoji}</text>`;
+    if (hat.mask) {   // pushed up on the forehead, with sleepy eyes stitched on
+      const [main, stitch, strap] = hat.mask;
+      return `<g class="p-mask">
+      <path d="M50 60 Q100 40 150 60" fill="none" stroke="${strap}" stroke-width="5" stroke-linecap="round"/>
+      <path d="M64 50 Q81 38 98 48 Q100 50 102 48 Q119 38 136 50 Q142 62 128 68 Q114 72 102 64 Q100 62 98 64 Q86 72 72 68 Q58 62 64 50 Z" fill="${main}"/>
+      <path d="M72 56 Q80 62 88 56 M112 56 Q120 62 128 56" fill="none" stroke="${stitch}" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M75 60 l-2 4 M80 61 l0 4 M85 60 l2 4 M115 60 l-2 4 M120 61 l0 4 M125 60 l2 4" stroke="${stitch}" stroke-width="1.8" stroke-linecap="round"/></g>`;
+    }
     const [main, band, rib] = hat.beanie;
     const flakes = hat.snow ? `<text x="80" y="44" font-size="11" fill="#fff">❄</text><text x="110" y="34" font-size="9" fill="#fff">❄</text>` : "";
     return `

@@ -31,6 +31,7 @@
     $("optTextSize").value = String(st.textSize);
     $("optBatterySaver").value = st.batterySaver;
     $("optAutoNap").value = String(st.autoNap);
+    $("optBedtime").value = st.bedtime;
     applyPower();
     PI.fx.Particles.start();
   }
@@ -76,6 +77,7 @@
     bind("optTextSize", "textSize", el => Number(el.value));
     bind("optBatterySaver", "batterySaver", el => el.value);
     bind("optAutoNap", "autoNap", el => Number(el.value));
+    bind("optBedtime", "bedtime", el => el.value);
     $("napBtn").addEventListener("click", () => startNap());
     $("napWake").addEventListener("click", wake);
     // A stray tap on the dark screen keeps focus on the button, so Enter still wakes
@@ -141,11 +143,20 @@
     const list = PI.data.CHANGELOG, at = list.findIndex(x => x.version === seen), i = list.indexOf(c);
     return at < 0 ? i === 0 && seen !== PI.data.GAME_VERSION : i < at;
   }
+  // Notes are plain lines; a line starting "## " starts a new group with that heading
+  function newsNotes(notes) {
+    const groups = [];
+    notes.forEach(n => {
+      if (n.startsWith("## ")) groups.push({ head: n.slice(3), items: [] });
+      else (groups[groups.length - 1] || groups[groups.push({ head: "", items: [] }) - 1]).items.push(n);
+    });
+    return groups.map(g => `${g.head ? `<h4 class="news-head">${esc(g.head)}</h4>` : ""}<ul>${g.items.map(n => `<li>${esc(n)}</li>`).join("")}</ul>`).join("");
+  }
   function openWhatsNew() {
     const seen = S().seenVersion;
     const entry = (c, open) => `<details class="news"${open ? " open" : ""}>
         <summary><b>${esc(c.version)}</b> · ${esc(c.title)} <small class="muted">${fmtDate(c.date)}</small>${isNew(c, seen) ? ' <span class="pill">New</span>' : ""}</summary>
-        <ul>${c.notes.map(n => `<li>${esc(n)}</li>`).join("")}</ul></details>`;
+        ${newsNotes(c.notes)}</details>`;
     ui().openModal({
       title: "What's new",
       body: `<div class="news-list">${PI.data.CHANGELOG.map((c, i) => entry(c, i === 0 || isNew(c, seen))).join("")}</div>`,
@@ -298,6 +309,7 @@
 
   // Auto: on while the device is unplugged and below 20%. Only Chrome-family browsers tell pages about the battery.
   let batteryLow = false;
+  let sleepyHours = false;   // bedtime, or the wind-down just before it
   function watchBattery() {
     if (!navigator.getBattery) return;
     navigator.getBattery().then(b => {
@@ -308,7 +320,7 @@
     }).catch(() => {});
   }
   function applyPower() {
-    const mode = S().settings.batterySaver, on = mode === "on" || (mode === "auto" && batteryLow);
+    const mode = S().settings.batterySaver, on = mode === "on" || (mode === "auto" && (batteryLow || sleepyHours));
     const changed = on !== !!PI.powerSaving;
     PI.powerSaving = on;
     document.documentElement.classList.toggle("power-saver", on);
@@ -317,6 +329,32 @@
   }
 
   let nap = null;   // { at, last, fish } while napping
+  function isBedtime(date = new Date()) {
+    const b = S().settings.bedtime;
+    if (b === "off") return false;
+    const [from, to] = b.split("-").map(Number), h = date.getHours();
+    return from > to ? h >= from || h < to : h >= from && h < to;
+  }
+  // Minutes until bedtime starts (null with bedtime off)
+  function bedtimeIn(date = new Date()) {
+    const b = S().settings.bedtime;
+    if (b === "off") return null;
+    const from = Number(b.split("-")[0]) * 60, nowMin = date.getHours() * 60 + date.getMinutes();
+    return (from - nowMin + 1440) % 1440;
+  }
+  const WIND_DOWN = 15;   // minutes before bedtime when the colony gets sleepy
+  let yawnedOn = "";
+  function windDown(date = new Date()) {
+    const m = bedtimeIn(date), soon = m !== null && m > 0 && m <= WIND_DOWN;
+    document.documentElement.classList.toggle("bedtime-soon", soon && !PI.napping);
+    const sleepy = soon || isBedtime(date);
+    if (sleepy !== sleepyHours) { sleepyHours = sleepy; applyPower(); }
+    const day = date.toDateString();
+    if (soon && !PI.napping && yawnedOn !== day && PI.penguin.say(["*yawn* Bedtime soon…", "Getting sleepy… 🌙", "Nearly bedtime, everyone!"][Math.floor(Math.random() * 3)], true)) yawnedOn = day;
+    return soon;
+  }
+  const GOLDEN_WAITS = 180;
+  const LOOKOUT_SAVES = 3;   // golden fish Lookout Lumi can keep for you during one nap   // seconds of napping before a golden fish waits for you
   let lastInput = Date.now();
   ["pointerdown", "pointermove", "keydown", "wheel", "touchstart"].forEach(ev =>
     document.addEventListener(ev, () => { lastInput = Date.now(); }, { passive: true, capture: true }));
@@ -335,12 +373,25 @@
   function napTick() {
     if (!nap) return;
     const t = Date.now();
+    const hoursBefore = Math.floor(S().stats.napSeconds / 3600);
     S().stats.napSeconds += Math.min(5, (t - nap.last) / 1000);
+    E.addNapTime(Math.min(5, (t - nap.last) / 1000));
+    const hours = Math.min(PI.data.NAP_STARS, Math.floor(S().stats.napSeconds / 3600)), stars = S().napStars;
+    if (hours > hoursBefore) { while (stars.length < hours - 1) stars.push(0); if (stars.length < hours) stars.push(t); }
     nap.last = t;
     const secs = (t - nap.at) / 1000;
     setText($("napFish"), fmt(Math.floor(S().fish)));
     setText($("napFps"), fmt(E.fishPerSecond()));
     setText($("napFor"), secs < 60 ? "a moment" : PI.fmtTime(secs));
+    // The nap bonus, then any boosts still running (a minute's precision is plenty on this screen)
+    const now = E.now();
+    const left = ms => (ms >= 60000 ? `${Math.ceil(ms / 60000)}m` : `${Math.ceil(ms / 1000)}s`);
+    const streak = E.napStreakNow();
+    const html = `<span class="buff nap-bonus">💤 Nap bonus +${Math.round((E.napMult() - 1) * 100)}%</span>` +
+      (streak ? `<span class="buff nap-bonus">😴 Nap streak: day ${streak}</span>` : "") +
+      S().buffs.filter(b => b.until > now).map(b => `<span class="buff">${b.name} ×${b.mult} · ${left(b.until - now)}</span>`).join("");
+    if ($("napBuffs").innerHTML !== html) $("napBuffs").innerHTML = html;
+    $("napMoon").classList.toggle("hidden", S().stats.napSeconds < PI.data.NAP_STARS * 3600);
     const title = `💤 ${fmt(Math.floor(S().fish))} fish · Penguin Idle`;
     if (document.title !== title) document.title = title;
   }
@@ -350,7 +401,8 @@
     if (PI.napping) return;
     PI.fx.Sound.play("yawn");   // a little yawn, then the sound sleeps too
     PI.napping = true;
-    nap = { at: Date.now(), last: Date.now(), fish: S().lifetimeFish };
+    E.setNapping(true);
+    nap = { at: Date.now(), last: Date.now(), fish: S().lifetimeFish, bonus: S().stats.napBonusFish, saved: 0 };
     ui().closeSheet();
     ui().hideTooltip();
     PI.fx.Particles.clear();
@@ -369,7 +421,9 @@
     if (!PI.napping) return;
     napTick();
     const slept = (Date.now() - nap.at) / 1000, caught = S().lifetimeFish - nap.fish;
+    const bonus = S().stats.napBonusFish - nap.bonus, saved = nap.saved;
     PI.napping = false;
+    E.setNapping(false);
     nap = null;
     lastInput = Date.now();
     document.documentElement.classList.remove("napping");
@@ -384,7 +438,21 @@
     ui().slowTick();
     ui().tick();
     $("bigPenguin").focus({ preventScroll: true, focusVisible: false });
-    if (slept >= 30 && caught > 0) ui().toast(`☀️ <b>Good morning!</b> While you napped (${PI.fmtTime(slept)}), the colony caught 🐟 ${fmt(caught)}.`);
+    // Golden fish don't swim past a sleeping colony; after a proper nap one waits to say good morning
+    const golden = slept >= GOLDEN_WAITS && !E.M.noGolden, rush = golden && slept >= 3600;
+    if (golden) { ui().spawnGolden(rush ? "rush" : null); nextGolden = Date.now() + E.goldenDelay(); }
+    const NAMES = { lucky: "Lucky Catch", rush: "Cocoa Rush", flurry: "Flipper Flurry", aurora: "Aurora Blessing" };
+    const kept = [];
+    for (let i = 0; i < saved; i++) kept.push(NAMES[E.goldenEffect({}, true, null, true)]);
+    if (slept >= 30 && (caught > 0 || golden || saved)) {
+      const row = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
+      ui().toast(`<div class="wake-card"><b>☀️ Good morning!</b><dl>` + row("Slept", PI.fmtTime(slept)) + row("Caught", `🐟 ${fmt(caught)}`) +
+        (bonus >= 1 ? row("Nap bonus", `🐟 +${fmt(bonus)}`) : "") + `</dl>` +
+        (saved ? `<p>📯 Lookout Lumi kept ${saved === 1 ? "a golden fish" : `${saved} golden fish`} for you: ${[...new Set(kept)].map(k => { const n = kept.filter(x => x === k).length; return n > 1 ? `${n}× ${k}` : k; }).join(", ")}.</p>` : "") +
+        (rush ? "<p>🌟 After that long sleep, a golden fish is waiting with a Cocoa Rush!</p>" : golden ? "<p>🌟 A golden fish waited for you!</p>" : "") +
+        `</div>`, 9000);
+    }
+    ui().afterNap();
     E.checkAchievements();
     E.save();
   }
@@ -454,6 +522,7 @@
     if (PI.fx.Music.on && PI.fx.Sound.ctx && PI.fx.Sound.ctx.state === "running") S().stats.musicSeconds += dt;
     if (Date.now() >= nextGolden) {
       if (!document.hidden && !PI.napping) ui().spawnGolden();
+      else if (PI.napping && nap && E.helperOn("lookout") && !E.M.noGolden && nap.saved < LOOKOUT_SAVES) nap.saved++;   // Lumi keeps watch
       nextGolden = Date.now() + E.goldenDelay();
     }
     uiTimer += dt; slowTimer += dt; saveTimer += dt; minuteTimer += dt;
@@ -462,8 +531,9 @@
       slowTimer = 0;
       E.checkAchievements();
       if (!PI.napping) ui().slowTick();
-      const idleMins = S().settings.autoNap;
-      if (idleMins && !PI.napping && !document.hidden && Date.now() - lastInput >= idleMins * 60000) startNap();
+      windDown();
+      const idleMins = Math.min(S().settings.autoNap || Infinity, isBedtime() ? 1 : Infinity);   // at bedtime, a minute left alone is enough
+      if (idleMins !== Infinity && !PI.napping && !document.hidden && Date.now() - lastInput >= idleMins * 60000) startNap();
     }
     if (minuteTimer >= 60) { minuteTimer = 0; E.recompute(); if (E.ensureLetters()) ui().toast("💌 New penguin letters have arrived!"); }   // seasons and letters follow the date
     if (saveTimer >= 15) { saveTimer = 0; E.save(); }
@@ -528,7 +598,7 @@
     spawnGolden: () => ui().spawnGolden(),
     encodeSave: () => E.encodeSave(), decodeSave: str => E.decodeSave(str), save: () => E.save(),
     moveCode: () => packMove(E.transferJSON()),
-    nap: { start: startNap, wake, get on() { return !!PI.napping; }, idleFor: ms => { lastInput = Date.now() - ms; } },
+    nap: { start: startNap, wake, get on() { return !!PI.napping; }, idleFor: ms => { lastInput = Date.now() - ms; }, sleptFor: ms => { if (nap) nap.at -= ms; }, isBedtime, bedtimeIn, windDown, goldenNow: () => { nextGolden = 0; } },
     get loopMs() { return loopMs; },
   };
 

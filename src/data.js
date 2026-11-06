@@ -37,7 +37,28 @@
   // Written for players, not developers. Every release adds an entry at the top, and the service
   // worker's CACHE must be "penguin-idle-v<version>" (tools/check-data.js fails CI otherwise), so
   // installed copies always pick up the update.
+  const BEDTIMES = ["off", "21-7", "22-7", "23-7", "0-8"];   // bedtime nap windows, local hours
+  const NAP_STARS = 24;   // one sky star per napped hour, up to this many
+  const NAP_BONUS = 0.05;   // napping fishes this much faster before Lullabies
   const CHANGELOG = [
+    { version: "4.3", date: "2026-11-06", title: "Sweet dreams", notes: [
+      "## Napping",
+      "Napping fishes 5% faster, and the new Lullabies project in the Workshop makes it faster still.",
+      "The nap screen shows your nap bonus, your nap streak and any boosts still running.",
+      "Only the Wake up button wakes the colony, so a stray tap or key won't.",
+      "Waking up shows a little summary of the nap, and notes that arrived while you slept follow just after it.",
+      "Stats shows the extra fish your naps have earned, and the graph shades the minutes you napped.",
+      "## Bedtime",
+      "Pick a bedtime in Settings and the colony naps by itself overnight once you've left it for a minute.",
+      "Fifteen minutes before bedtime the colony dims and the big penguin yawns.",
+      "The Auto battery saver also rests the scenery at bedtime.",
+      "## Rewards",
+      "Golden fish wait while you nap: after a few minutes one is there to greet you, and after an hour it brings a Cocoa Rush.",
+      "If you have hired Lookout Lumi, they keep watch while you nap and save up to 3 golden fish for when you wake.",
+      "Every napped hour puts a lavender star in the sky. Tap one, or see the list in Stats. Fill the sky with 24 and it turns moonlit.",
+      "Nap for 5 minutes a day, 7 days in a row, to win the Sleep Mask. Missing one day a week won't break your streak.",
+      "New memories for learning every Lullaby and for a moonlit sky.",
+    ] },
     { version: "4.2", date: "2026-11-06", title: "Nap time", notes: [
       "Tap 💤 (or press Z) to let the colony nap: a dark, nearly still screen that goes easy on your battery while the fishing carries on at full pace.",
       "The game can nap by itself when you leave it alone for a while (Settings → Nap by itself).",
@@ -360,6 +381,8 @@
       text: L => `Lucky Catches +${10 * L}%`, apply: (m, L) => { m.luckyMult *= 1 + 0.1 * L; } },
     { id: "nightshift", icon: "🌃", name: "Night Shift Rota",  max: 10, cost: 5e5,   growth: 2,    unlockAt: 2e5,
       text: L => `Offline pace +${5 * L}% and ${2 * L} more hours`, apply: (m, L) => { m.offlineEff += 0.05 * L; m.offlineCapH += 2 * L; } },
+    { id: "lullaby",    icon: "🌛", name: "Lullabies",         max: 8,  cost: 2e5,   growth: 2,    unlockAt: 1e5,
+      text: L => `Napping fishes ${Math.round((NAP_BONUS + 0.05 * L) * 100)}% faster`, apply: (m, L) => { m.napMult += 0.05 * L; } },
     { id: "bulk",       icon: "📋", name: "Bulk Orders",       max: 15, cost: 1e6,   growth: 2,    unlockAt: 5e5,
       text: L => `Colony members ${Math.round((1 - Math.pow(0.98, L)) * 100)}% cheaper`, apply: (m, L) => { m.costMult *= Math.pow(0.98, L); } },
     { id: "teamwork",   icon: "🔗", name: "Colony Teamwork",   max: 10, cost: 1e7,   growth: 2.5,  unlockAt: 5e6,
@@ -523,6 +546,7 @@
       { id: "scholar",   name: "Scholar's Cap",    emoji: "🎓", need: s => s.achievements.includes("res_max"), unlockText: "Max out a Workshop project" },
       { id: "crown",     name: "Little Crown",     emoji: "👑", need: s => (s.heritage.emperor || 0) > 0, unlockText: "Learn Emperor's Blessing" },
       { id: "sunhat",    name: "Sun Hat",          emoji: "👒", ...seasonal("sunlit") },
+      { id: "sleepmask", name: "Sleep Mask",       mask: ["#b9a6e8", "#6f58a8", "#efe7ff"], need: s => s.napStreak.best >= 7, unlockText: "Nap on 7 days in a row" },
       { id: "nightcap",  name: "Nightcap",         beanie: ["#3b4a8a", "#f6e7b0", "#2c3970"], need: s => s.achievements.includes("nap_hour"), unlockText: "Nap for an hour" },
     ],
     scarf: [
@@ -586,6 +610,8 @@
   ach("music_hour", "Lofi Listener", "Listen to the colony's music for an hour.", s => s.stats.musicSeconds >= 3600, "🎧");
   ach("rub_100", "Belly Rubs", "Pat the penguin 100 times by rubbing it.", s => s.stats.rubPats >= 100, "🫳");
   ach("nap_hour", "Power Nap", "Let the colony nap for an hour in total (💤 in the top bar).", s => s.stats.napSeconds >= 3600, "🌙");
+  ach("lullaby_max", "Sweet Dreams", "Learn every Lullaby in the Workshop.", s => (s.research.lullaby || 0) >= 8, "🪷");
+  ach("moonlit", "Moonlit Sky", "Nap for 24 hours in total and fill the sky with nap stars.", s => s.stats.napSeconds >= 24 * 3600, "🎑");
   ach("nap_day", "Hibernation Champion", "Let the colony nap for 8 hours in total.", s => s.stats.napSeconds >= 8 * 3600, "🛌");
   ach("rub_5000", "Belly Rub Expert", "Pat the penguin 5,000 times by rubbing it.", s => s.stats.rubPats >= 5000, "💆");
 
@@ -593,7 +619,7 @@
   PI.fmtTime = fmtTime;
   PI.fmtOptions = fmtOptions;
   PI.data = {
-    SAVE_KEY, SAVE_VERSION: 4, CHANGELOG, GAME_VERSION, COST_GROWTH, MILESTONES, FEATHER_BONUS, ACH_BONUS, FEATHER_SCALE, SUFFIXES, TEXT_SIZES,
+    SAVE_KEY, SAVE_VERSION: 4, NAP_BONUS, BEDTIMES, NAP_STARS, CHANGELOG, GAME_VERSION, COST_GROWTH, MILESTONES, FEATHER_BONUS, ACH_BONUS, FEATHER_SCALE, SUFFIXES, TEXT_SIZES,
     BUILDINGS, B_BY_ID, TIER_REQS, TIER_COSTS, TIER_NUMERALS, BUILDING_UPGRADES,
     UPGRADES, UP_BY_ID, SYNERGIES, RESEARCH, R_BY_ID, TREE, H_BY_ID, BRANCH_NAMES, totalColony,
     ACHIEVEMENTS, HELPERS, HELPER_BY_ID, SHORES, SHORE_BY_ID, SEASONS, SEASON_BY_ID,

@@ -95,7 +95,10 @@
   // Toasts (memories are grouped so a burst of unlocks doesn't bury the screen)
   // =====================================================================
   // Toasts stack in the bottom-left corner. Clicking one (anywhere but its button) dismisses it.
-  function toast(html) {
+  // While the colony naps (and for a moment after) notes wait, so the wake card arrives on its own
+  let heldToasts = [], holdUntil = 0;
+  function toast(html, ms = 4500) {
+    if (PI.napping || Date.now() < holdUntil) { heldToasts.push([html, ms]); return; }
     const box = $("toasts");
     const el = document.createElement("div");
     el.className = "toast";
@@ -105,15 +108,24 @@
     let gone = false;
     const dismiss = () => { if (gone) return; gone = true; el.classList.add("out"); setTimeout(() => el.remove(), 350); };
     el.addEventListener("click", e => { if (!e.target.closest("button, a, input")) dismiss(); });
-    setTimeout(dismiss, 4500);
+    setTimeout(dismiss, ms);
     while (box.children.length > 4) box.firstChild.remove();
   }
 
   let memoryQueue = [], memoryTimer = null;
+  function afterNap(delay = 1800) {
+    holdUntil = Date.now() + delay;
+    setTimeout(() => {
+      holdUntil = 0;
+      heldToasts.splice(0).slice(-3).forEach(([h, ms]) => toast(h, ms));   // the latest few are plenty
+      if (memoryQueue.length) queueMemories([]);
+    }, delay);
+  }
   function queueMemories(list) {
     memoryQueue.push(...list);
     clearTimeout(memoryTimer);
     memoryTimer = setTimeout(() => {
+      if (PI.napping || Date.now() < holdUntil) return;   // afterNap() lets them out
       const q = memoryQueue;
       memoryQueue = [];
       if (q.length <= 2) q.forEach(a => toast(`<span class="polaroid">${a.icon}</span> <b>${a.name}</b><br>${a.desc}`));
@@ -590,7 +602,7 @@
       const items = D.COSMETICS[slot].map(c => {
         const unlocked = c.need(S()), worn = S().cosmetics[slot] === c.id;
         const swatch = c.emoji !== undefined ? (c.emoji || "∅")
-          : `<span class="swatch" style="background:${(c.beanie || c.colors)[0].startsWith("url") ? "linear-gradient(90deg,#ff9a8b,#ffd27a,#a6e3bd,#a9c8ff,#d9b3ff)" : (c.beanie || c.colors)[0]}"></span>`;
+          : `<span class="swatch" style="background:${(c.beanie || c.colors || c.mask)[0].startsWith("url") ? "linear-gradient(90deg,#ff9a8b,#ffd27a,#a6e3bd,#a9c8ff,#d9b3ff)" : (c.beanie || c.colors || c.mask)[0]}"></span>`;
         return `<button class="ward${worn ? " worn" : ""}${unlocked ? "" : " locked"}" data-slot="${slot}" data-id="${c.id}" aria-pressed="${worn}"
           aria-label="${c.name}${unlocked ? "" : `, locked: ${c.unlockText}`}" title="${c.name}${unlocked ? "" : ` (🔒 ${c.unlockText})`}">
           <span class="w-swatch" aria-hidden="true">${unlocked ? swatch : "🔒"}</span><span class="w-name">${c.name}</span>
@@ -629,9 +641,13 @@
     const lo = Math.min(...vals), hi = Math.max(...vals, lo + 1);
     const pts = vals.map((v, i) => `${(pad + (i / (vals.length - 1)) * (W - 2 * pad)).toFixed(1)},${(H - pad - ((v - lo) / (hi - lo)) * (H - 2 * pad)).toFixed(1)}`).join(" ");
     const span = (h[h.length - 1][0] - h[0][0]) / 1000;
+    // Minutes the colony napped are shaded behind the line
+    const step = (W - 2 * pad) / (vals.length - 1);
+    const naps = h.map((p, i) => (p[2] ? `<rect class="g-nap" x="${(pad + (i - 0.5) * step).toFixed(1)}" y="0" width="${step.toFixed(1)}" height="${H}"/>` : "")).join("");
+    const napped = h.some(p => p[2]);
     setHTML(box, `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Fish per second over the last ${fmtTime(span)}, from ${fmt(Math.pow(10, lo))} to ${fmt(Math.pow(10, hi))}">
-        <polyline points="${pad},${H - pad} ${pts} ${W - pad},${H - pad}" class="g-fill"/><polyline points="${pts}" class="g-line"/></svg>
-      <div class="g-axis"><span>${fmtTime(span)} ago</span><span>${fmt(Math.pow(10, lo))} → ${fmt(Math.pow(10, hi))} /s (log scale)</span><span>now</span></div>`);
+        ${naps}<polyline points="${pad},${H - pad} ${pts} ${W - pad},${H - pad}" class="g-fill"/><polyline points="${pts}" class="g-line"/></svg>
+      <div class="g-axis"><span>${fmtTime(span)} ago</span><span>${fmt(Math.pow(10, lo))} → ${fmt(Math.pow(10, hi))} /s (log scale)</span><span>now</span></div>${napped ? '<p class="g-key"><span class="g-swatch"></span> Napping</p>' : ""}`);
   }
 
   function renderStats() {
@@ -654,12 +670,15 @@
       ["Catches carried to the basket", fmt(st.deliveries)],
       ["Music listened to", fmtTime(st.musicSeconds)],
       ["Time spent napping", fmtTime(st.napSeconds)],
+      ["Extra fish from the nap bonus", fmt(st.napBonusFish)],
+      ["Nap streak", `${E.napStreakNow()} day${E.napStreakNow() === 1 ? "" : "s"} (best ${S().napStreak.best})`],
       ["Feather bonus", `+${fmt((M().feather - 1) * 100)}%`],
       ["Memories bonus", `+${fmt((M().ach - 1) * 100)}%`],
       ["This migration started", `${fmtTime((E.now() - st.runStartedAt) / 1000)} ago`],
       ["Playing since", new Date(st.startedAt).toLocaleDateString()],
     ];
     setHTML($("stats"), rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join(""));
+    renderNapStarList();
     renderStatsGraph();
   }
 
@@ -1214,7 +1233,7 @@
   // =====================================================================
   // Golden fish
   // =====================================================================
-  function spawnGolden() {
+  function spawnGolden(force = null) {
     if (M().noGolden) return;
     const el = document.createElement("button");
     el.className = "golden-fish";
@@ -1226,7 +1245,7 @@
     el.style.left = `${left}vw`;
     el.style.top = `${top}vh`;
     let caught = false;
-    const catchIt = (pos, auto) => { if (caught) return; caught = true; el.remove(); E.goldenEffect(pos, auto); };
+    const catchIt = (pos, auto) => { if (caught) return; caught = true; el.remove(); E.goldenEffect(pos, auto, force); };
     el.addEventListener("click", e => catchIt(pointFrom(e, el), false));
     $("goldenLayer").appendChild(el);
     setTimeout(() => el.remove(), dur * 1000);
@@ -1312,7 +1331,44 @@
     renderSheet();
   }
 
+  // One little lavender star in the sky for every hour the colony has napped (up to 24)
+  function renderNapStars() {
+    const n = Math.min(D.NAP_STARS, Math.floor(S().stats.napSeconds / 3600)), box = $("napStars");
+    $("colony").classList.toggle("moonlit", n >= D.NAP_STARS);
+    if (box.childElementCount === n) return;
+    box.innerHTML = Array.from({ length: n }, (_, i) => {
+      // Scattered like a real sky, but each star keeps its place: x steps along evenly, y comes from a fixed hash
+      const hash = k => { const v = Math.sin(k * 12.9898 + 78.233) * 43758.5453; return v - Math.floor(v); };
+      const x = 4 + ((i * 0.618034 + 0.13) % 1) * 92, y = 8 + hash(i + 1) * 34;
+      return `<span data-star="${i}" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%;animation-delay:${(i % 7) * 0.6}s">✦</span>`;
+    }).join("");
+  }
+  function napStarNote(i) {
+    return `✦ <b>Nap star ${i + 1}</b><br>${S().napStars[i] ? `Earned ${napStarText(i)}, ${i + 1} hour${i ? "s" : ""} into your naps.` : "Earned before the stars kept dates."}`;
+  }
+
+  function renderNapStarList() {
+    const n = Math.min(D.NAP_STARS, Math.floor(S().stats.napSeconds / 3600)), box = $("napStarList");
+    box.classList.toggle("hidden", !n);
+    if (!n) return;
+    setText(box.querySelector("summary"), `✦ Nap stars: ${n} of ${D.NAP_STARS}${n >= D.NAP_STARS ? " (the sky is moonlit)" : ""}`);
+    setHTML(box.querySelector("ol"), Array.from({ length: n }, (_, i) => `<li>${napStarText(i)}</li>`).join(""));
+  }
+  function napStarText(i) {
+    const t = S().napStars[i];
+    return t ? new Date(t).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })
+      : "Before the stars kept dates";
+  }
+
+  function bindNapStars() {
+    $("napStars").addEventListener("click", e => {
+      const s = e.target.closest("[data-star]");
+      if (s) { e.stopPropagation(); toast(napStarNote(Number(s.dataset.star))); }
+    });
+  }
+
   function slowTick() {   // once a second: things that change slowly
+    renderNapStars();
     if (currentTab === "colony") renderUpgrades();
     if (currentTab === "stats") renderStats();
     updateBadges();
@@ -1351,8 +1407,11 @@
     bus.on("buyBuilding", d => arrival(d.id));
     bus.on("milestone", d => toast(`<b>Milestone!</b> ${d.b.plural} now catch ${d.mult === 2 ? "twice" : `${+d.mult.toFixed(2)}×`} as many fish.`));
     bus.on("buyAll", d => toast(`🛍️ Bought <b>${d.count}</b> upgrade${d.count > 1 ? "s" : ""}.`));
-    bus.on("golden", d => toast(d.auto ? `📯 Lookout Lumi caught a golden fish! ${d.msg}` : d.msg));
+    bus.on("golden", d => d.quiet || toast(d.auto ? `📯 Lookout Lumi caught a golden fish! ${d.msg}` : d.msg));
     bus.on("achievements", list => queueMemories(list));
+    bus.on("napStreak", ns => toast(ns.mask
+      ?"😴 <b>7 nap days in a row!</b> The Sleep Mask is in your wardrobe."
+      : `😴 <b>Nap streak: ${ns.count} day${ns.count === 1 ? "" : "s"}</b>${ns.best < 7 ? ` · ${7 - ns.count} more for the Sleep Mask` : ""}`));
     bus.on("respec", () => toast("🪶 <b>Feathers refunded.</b> Plant your tree however you like."));
     bus.on("hireHelper", d => toast(`${d.h.icon} <b>${d.h.name}</b> has joined the colony!`));
     bus.on("letterClaimed", d => toast(`💌 You wrote back to <b>${d.l.sender}</b>. +${fmt(d.reward)} fish`));
@@ -1434,6 +1493,7 @@
     scheduleWork(2000 + Math.random() * 2000);
     scheduleProps(1500);
     wire();
+    bindNapStars();
 
     const peng = $("bigPenguin");
     wirePatting(peng);
@@ -1481,7 +1541,7 @@
   const cycleBuyAmount = () => { const order = ["1", "10", "100", "max"]; setBuyAmount(order[(order.indexOf(String(buyAmount)) + 1) % order.length]); };
 
   PI.ui = {
-    init, tick, slowTick, openModal, toast, selectTab, spawnGolden, bumpCounter, migrateFlow,
+    init, tick, slowTick, openModal, toast, afterNap, selectTab, spawnGolden, bumpCounter, migrateFlow,
     cycleBuyAmount, refreshStructure, renderTab, closeSheet, hideTooltip, updateBadges, renderNextGoal, chatNow: startChat, workNow: startWork, propNow: propAct,
     buildingRow: id => els[id] && els[id].root,
     get modalOpen() { return modals.length > 0; },

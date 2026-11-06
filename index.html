@@ -50,6 +50,7 @@
         <div class="lights" id="lights"></div>
         <div class="aurora" id="aurora"></div>
         <div class="stars"></div>
+        <div class="nap-stars" id="napStars"></div>
         <div class="land land-back" id="landBack"></div>
         <div class="ground"></div>
         <div class="land land-front" id="landFront"></div>
@@ -174,9 +175,18 @@
           <label class="check"><input type="checkbox" id="optHoldToPat"> Hold the penguin to keep patting</label>
           <label class="range" title="Rests the weather and scenery and updates less often, to go easy on your battery">Battery saver
             <select id="optBatterySaver">
-              <option value="auto">Auto (when the battery is low)</option>
+              <option value="auto">Auto (low battery, or at bedtime)</option>
               <option value="on">Always on</option>
               <option value="off">Off</option>
+            </select>
+          </label>
+          <label class="range">Bedtime nap
+            <select id="optBedtime">
+              <option value="off">Off</option>
+              <option value="21-7">9pm to 7am</option>
+              <option value="22-7">10pm to 7am</option>
+              <option value="23-7">11pm to 7am</option>
+              <option value="0-8">Midnight to 8am</option>
             </select>
           </label>
           <label class="range">Nap by itself
@@ -215,6 +225,7 @@
         <h2>Statistics</h2>
         <div id="statsGraph" class="stats-graph"></div>
         <dl id="stats" class="stats"></dl>
+        <details id="napStarList" class="nap-star-list hidden"><summary></summary><ol></ol></details>
 
         <h2>Save</h2>
         <p class="muted">The game saves to this browser every 15 seconds and keeps a backup copy.</p>
@@ -239,12 +250,14 @@
   <div id="modalRoot"></div>
   <div id="tooltip" class="tooltip hidden" role="tooltip"></div>
   <div id="napScreen" class="nap-screen hidden" role="dialog" aria-modal="true" aria-labelledby="napTitle">
+    <div class="nap-moon hidden" id="napMoon" aria-hidden="true"></div>
     <div class="nap-penguin big-penguin sleeping"><svg id="napSvg" viewBox="0 -10 200 230" width="150" height="172" aria-hidden="true"></svg></div>
     <h2 id="napTitle" class="nap-title">The colony is napping</h2>
     <p class="nap-fish"><span id="napFish">0</span> fish</p>
     <p class="nap-sub"><span id="napFps">0</span> per second · napping for <span id="napFor">a moment</span></p>
+    <div id="napBuffs" class="buffs nap-buffs" aria-label="Bonuses"></div>
     <button class="btn primary" id="napWake">☀️ Wake up</button>
-    <p class="nap-hint">Press Wake up when you're back. The fishing carries on at full pace while sounds and animations rest.</p>
+    <p class="nap-hint">Press Wake up when you're back. Sounds and animations rest, golden fish wait for you, and the colony fishes a little faster.</p>
     <p class="nap-phone">On a phone, locking the screen saves the most battery. The colony still fishes while you're away, at your time-away pace.</p>
   </div>
 
