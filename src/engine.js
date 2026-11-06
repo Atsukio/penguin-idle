@@ -36,6 +36,8 @@
       particles: true, scientific: false,
       sound: true, volume: 0.5, ambience: false, music: true, musicVolume: 0.5,
       shake: 0.6, reduceMotion: prefersReducedMotion, textSize: 1, cozyCursor: true, holdToPat: true,
+      batterySaver: "auto",   // "auto" (when the battery is low), "on" or "off"
+      autoNap: 0,             // nap by itself after this many idle minutes (0 = never)
     };
   }
 
@@ -43,7 +45,7 @@
     return {
       clicks: 0, clickFish: 0, goldenClicks: 0, bigCatches: 0, longestAway: 0,
       buildingsBought: 0, upgradesBought: 0, researchBought: 0, lettersClaimed: 0, outfitChanges: 0, seasonalCatches: 0,
-      deliveries: 0, musicSeconds: 0, propLooks: 0, rubPats: 0,
+      deliveries: 0, musicSeconds: 0, propLooks: 0, rubPats: 0, napSeconds: 0,
       startedAt: now(), runStartedAt: now(),
     };
   }
@@ -60,6 +62,7 @@
       shore: "home", nextShore: "home", shoresVisited: ["home"],
       cosmetics: { hat: "coral", scarf: "coral", item: "mug" },
       names: [],           // names the player gave colony residents (up to NAME_SLOTS; "" = an unnamed slot)
+      defaultNames: [],    // a cute name per slot for residents the player hasn't named (filled in by ensureDefaultNames)
       seasonalUnlocks: [], // season ids where a golden fish was caught
       letters: { day: "", list: [], bonus: false },
       history: [],         // [timestamp, fish per second] samples for the Stats graph
@@ -117,6 +120,7 @@
   }
 
   function recompute() {
+    ensureDefaultNames();   // every load, import and reset passes through here
     const m = {
       building: Object.fromEntries(BUILDINGS.map(b => [b.id, 1])),
       click: 1, clickFps: 0, global: 1, goldenFreq: 1, goldenDur: 1,
@@ -396,10 +400,28 @@
     if (S.names[i] === n) return false;
     S.names[i] = n;
     while (S.names.length && !S.names[S.names.length - 1]) S.names.pop();
+    ensureDefaultNames();
     bus.emit("names");
     return true;
   }
-  const residentNames = () => S.names.filter(Boolean);
+  // Every slot has a cute default, kept in the save so residents don't change names on a reload.
+  const randomCuteName = (avoid = []) => {
+    const pool = D.CUTE_NAMES.filter(n => !avoid.includes(n));
+    return (pool.length ? pool : D.CUTE_NAMES)[Math.floor(Math.random() * (pool.length || D.CUTE_NAMES.length))];
+  };
+  function ensureDefaultNames() {
+    const d = S.defaultNames;
+    for (let i = 0; i < NAME_SLOTS; i++) {
+      if (d[i] && !d.slice(0, i).includes(d[i]) && !S.names.includes(d[i])) continue;   // no two residents share a name
+      d[i] = randomCuteName([...d.slice(0, i), ...S.names]);
+    }
+    d.length = NAME_SLOTS;
+  }
+  // A fresh cute name for slot i, different from every name already in use
+  const suggestName = i => randomCuteName([...S.names, ...S.defaultNames, S.names[i]]);
+  // Slot by slot: the player's name if they gave one, otherwise the default
+  const residentNames = () => Array.from({ length: NAME_SLOTS }, (_, i) => S.names[i] || S.defaultNames[i]).filter(Boolean);
+  const playerNames = () => S.names.filter(Boolean);
 
   // ---------- Golden fish ----------
   const goldenDelay = () => (120 + Math.random() * 180) * 1000 / M.goldenFreq;
@@ -729,6 +751,7 @@
     const cos = obj(data.cosmetics);
     Object.keys(COSMETICS).forEach(slot => { if (COSMETICS[slot].some(c => c.id === cos[slot])) s.cosmetics[slot] = cos[slot]; });
     s.names = (Array.isArray(data.names) ? data.names : []).slice(0, NAME_SLOTS).map(cleanName);
+    s.defaultNames = (Array.isArray(data.defaultNames) ? data.defaultNames : []).slice(0, NAME_SLOTS).map(cleanName);
     const L = obj(data.letters);
     if (typeof L.day === "string" && Array.isArray(L.list)) {
       s.letters.day = L.day;
@@ -748,6 +771,8 @@
     s.settings.musicVolume = Math.min(1, Math.max(0, s.settings.musicVolume));
     s.settings.shake = Math.min(1, Math.max(0, s.settings.shake));
     if (!TEXT_SIZES.includes(s.settings.textSize)) s.settings.textSize = 1;
+    if (!["auto", "on", "off"].includes(s.settings.batterySaver)) s.settings.batterySaver = "auto";
+    if (![0, 5, 15, 30].includes(s.settings.autoNap)) s.settings.autoNap = 0;
     s.lastTick = num(data.lastTick) || now();
     // Saves from before What's new existed have no seenVersion: those players get the news too
     s.seenVersion = typeof data.seenVersion === "string" ? data.seenVersion.slice(0, 16) : "";
@@ -831,7 +856,7 @@
     gain, clickPenguin, buyBuilding, buyUpgrade, buyAllUpgrades, buyResearch, learnNode, refundTree,
     hireHelper, toggleHelper, doMigrate, setNextShore,
     cosmeticItem, cosmeticUnlocked, setOutfit,
-    NAME_SLOTS, cleanName, setName, residentNames,
+    NAME_SLOTS, cleanName, setName, residentNames, playerNames, suggestName, ensureDefaultNames,
     goldenDelay, goldenEffect,
     dayKey, ensureLetters, letterProgress, letterReward, claimLetter, claimLetterBonus,
     checkAchievements, runHelpers, tick, applyOffline,

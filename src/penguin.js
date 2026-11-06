@@ -177,7 +177,7 @@
   // priority: big moments interrupt; small remarks wait their turn
   function say(text, important = false) {
     const el = document.getElementById("penguinSay");
-    if (!el || document.hidden) return false;
+    if (!el || document.hidden || PI.napping) return false;
     const now = Date.now();
     if (!important && (now - lastSaid < 7000 || !el.classList.contains("hidden"))) return false;
     lastSaid = now;
@@ -226,7 +226,7 @@
 
   function tick() {
     const now = Date.now();
-    if (document.hidden) return;
+    if (document.hidden || PI.napping) return;
     if (!P.sleeping && now >= P.nextBlink) {
       flash("blink", 170);
       P.nextBlink = now + (Math.random() < 0.2 ? 260 : rand(2200, 6000));   // sometimes a double blink

@@ -29,6 +29,9 @@
     $("optScientific").checked = st.scientific;
     $("optHoldToPat").checked = st.holdToPat;
     $("optTextSize").value = String(st.textSize);
+    $("optBatterySaver").value = st.batterySaver;
+    $("optAutoNap").value = String(st.autoNap);
+    applyPower();
     PI.fx.Particles.start();
   }
 
@@ -71,6 +74,10 @@
     $("whatsNewBtn").addEventListener("click", openWhatsNew);
     $("moveBtn").addEventListener("click", openMove);
     bind("optTextSize", "textSize", el => Number(el.value));
+    bind("optBatterySaver", "batterySaver", el => el.value);
+    bind("optAutoNap", "autoNap", el => Number(el.value));
+    $("napBtn").addEventListener("click", () => startNap());
+    $("napScreen").addEventListener("click", wake);
   }
 
   // ---------- Save controls ----------
@@ -240,6 +247,7 @@
       else if (k === "b") { E.buyAllUpgrades(); e.preventDefault(); }
       else if (k === "m") { ui().cycleBuyAmount(); e.preventDefault(); }
       else if (k === "p") { $("bigPenguin").focus(); e.preventDefault(); }
+      else if (k === "z" && !e.shiftKey) { startNap(); e.preventDefault(); }
     });
   }
 
@@ -272,6 +280,113 @@
     }).catch(() => {});
   }
 
+  // ---------- Nap mode and the battery saver ----------
+  // Napping hides the game behind a dark, nearly still screen: no weather, scenery, chats or golden fish, the
+  // sound is suspended, and the loop slows to once a second. The colony fishes at full pace the whole time.
+  // The battery saver is lighter: the weather and scenery rest and the loop runs 4 times a second.
+  const LOOP_MS = { play: 50, saver: 250, nap: 1000 };
+  let loopTimer = 0, loopMs = 0;
+  function setLoopRate() {
+    const ms = PI.napping ? LOOP_MS.nap : PI.powerSaving ? LOOP_MS.saver : LOOP_MS.play;
+    if (ms === loopMs) return;
+    loopMs = ms;
+    clearInterval(loopTimer);
+    loopTimer = setInterval(frame, ms);
+  }
+
+  // Auto: on while the device is unplugged and below 20%. Only Chrome-family browsers tell pages about the battery.
+  let batteryLow = false;
+  function watchBattery() {
+    if (!navigator.getBattery) return;
+    navigator.getBattery().then(b => {
+      const check = () => { batteryLow = !b.charging && b.level <= 0.2; applyPower(); };
+      b.addEventListener("chargingchange", check);
+      b.addEventListener("levelchange", check);
+      check();
+    }).catch(() => {});
+  }
+  function applyPower() {
+    const mode = S().settings.batterySaver, on = mode === "on" || (mode === "auto" && batteryLow);
+    const changed = on !== !!PI.powerSaving;
+    PI.powerSaving = on;
+    document.documentElement.classList.toggle("power-saver", on);
+    setLoopRate();
+    if (changed && PI.fx.Particles.canvas) { PI.fx.Particles.resize(); PI.fx.Particles.start(); }
+  }
+
+  let nap = null;   // { at, last, fish } while napping
+  let lastInput = Date.now();
+  ["pointerdown", "pointermove", "keydown", "wheel", "touchstart"].forEach(ev =>
+    document.addEventListener(ev, () => { lastInput = Date.now(); }, { passive: true, capture: true }));
+  // Any key wakes the colony (and does nothing else)
+  document.addEventListener("keydown", e => {
+    if (!PI.napping) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    wake();
+  }, true);
+
+  // The big penguin, in its current outfit, fast asleep (ids renamed so the copy's gradients don't clash)
+  function drawNapPenguin() {
+    $("napSvg").innerHTML = $("penguinSvg").innerHTML.replace(/id="([^"]+)"/g, 'id="nap-$1"').replace(/url\(#([^)]+)\)/g, "url(#nap-$1)");
+  }
+  function napTick() {
+    if (!nap) return;
+    const t = Date.now();
+    S().stats.napSeconds += Math.min(5, (t - nap.last) / 1000);
+    nap.last = t;
+    const secs = (t - nap.at) / 1000;
+    setText($("napFish"), fmt(Math.floor(S().fish)));
+    setText($("napFps"), fmt(E.fishPerSecond()));
+    setText($("napFor"), secs < 60 ? "a moment" : PI.fmtTime(secs));
+    const title = `💤 ${fmt(Math.floor(S().fish))} fish · Penguin Idle`;
+    if (document.title !== title) document.title = title;
+  }
+  const setText = (el, v) => { if (el.textContent !== v) el.textContent = v; };
+
+  function startNap() {
+    if (PI.napping) return;
+    PI.fx.Sound.play("yawn");   // a little yawn, then the sound sleeps too
+    PI.napping = true;
+    nap = { at: Date.now(), last: Date.now(), fish: S().lifetimeFish };
+    ui().closeSheet();
+    ui().hideTooltip();
+    PI.fx.Particles.clear();
+    drawNapPenguin();
+    document.documentElement.classList.add("napping");
+    $("napScreen").classList.remove("hidden");
+    $("napWake").focus({ preventScroll: true, focusVisible: false });
+    const ctx = PI.fx.Sound.ctx;
+    if (ctx) setTimeout(() => { if (PI.napping && ctx.state === "running") ctx.suspend().catch(() => {}); }, 900);
+    setLoopRate();
+    napTick();
+    E.save();
+  }
+
+  function wake() {
+    if (!PI.napping) return;
+    napTick();
+    const slept = (Date.now() - nap.at) / 1000, caught = S().lifetimeFish - nap.fish;
+    PI.napping = false;
+    nap = null;
+    lastInput = Date.now();
+    document.documentElement.classList.remove("napping");
+    $("napScreen").classList.add("hidden");
+    $("napSvg").innerHTML = "";
+    const ctx = PI.fx.Sound.ctx;
+    if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
+    setLoopRate();
+    lastFrame = performance.now();
+    PI.fx.Particles.start();
+    ui().refreshStructure();
+    ui().slowTick();
+    ui().tick();
+    $("bigPenguin").focus({ preventScroll: true, focusVisible: false });
+    if (slept >= 30 && caught > 0) ui().toast(`☀️ <b>Good morning!</b> While you napped (${PI.fmtTime(slept)}), the colony caught 🐟 ${fmt(caught)}.`);
+    E.checkAchievements();
+    E.save();
+  }
+
   // ---------- Loop ----------
   let lastFrame = performance.now(), uiTimer = 0, slowTimer = 0, saveTimer = 0, minuteTimer = 0;
   let nextGolden = 0;
@@ -302,8 +417,9 @@
   };
   const shuffled = list => list.map(x => [Math.random(), x]).sort((a, b) => a[0] - b[0]).map(x => x[1]);
   function awayNews(offline) {
-    const named = E.residentNames();
-    const friends = shuffled(named.length >= 2 ? named : [...named, ...shuffled(PI.data.LETTER_SENDERS.map(([n]) => n)).slice(0, 2 - named.length)]).slice(0, 2);
+    // Residents you named come first; the rest have their cute default names
+    const own = shuffled(E.playerNames());
+    const friends = [...own, ...shuffled(E.residentNames().filter(n => !own.includes(n)))].slice(0, 2);
     const h = new Date().getHours();
     const kind = offline.away >= 8 * 3600 ? "long" : h >= 21 || h < 6 ? "night" : "short";
     const lines = shuffled(AWAY_LINES[kind]);
@@ -328,19 +444,25 @@
 
   // Timer-driven (not requestAnimationFrame) so the colony keeps fishing in background tabs
   function frame() {
-    if (Date.now() - S().lastTick > 1000) catchUp();
+    if (Date.now() - S().lastTick > 1000 + loopMs) catchUp();
     const now = performance.now();
     const dt = Math.min(5, (now - lastFrame) / 1000);
     lastFrame = now;
     E.tick(dt);
     if (PI.fx.Music.on && PI.fx.Sound.ctx && PI.fx.Sound.ctx.state === "running") S().stats.musicSeconds += dt;
     if (Date.now() >= nextGolden) {
-      if (!document.hidden) ui().spawnGolden();
+      if (!document.hidden && !PI.napping) ui().spawnGolden();
       nextGolden = Date.now() + E.goldenDelay();
     }
     uiTimer += dt; slowTimer += dt; saveTimer += dt; minuteTimer += dt;
-    if (uiTimer >= 0.1) { uiTimer = 0; ui().tick(); }
-    if (slowTimer >= 1) { slowTimer = 0; E.checkAchievements(); ui().slowTick(); }
+    if (uiTimer >= 0.1) { uiTimer = 0; if (PI.napping) napTick(); else ui().tick(); }
+    if (slowTimer >= 1) {
+      slowTimer = 0;
+      E.checkAchievements();
+      if (!PI.napping) ui().slowTick();
+      const idleMins = S().settings.autoNap;
+      if (idleMins && !PI.napping && !document.hidden && Date.now() - lastInput >= idleMins * 60000) startNap();
+    }
     if (minuteTimer >= 60) { minuteTimer = 0; E.recompute(); if (E.ensureLetters()) ui().toast("💌 New penguin letters have arrived!"); }   // seasons and letters follow the date
     if (saveTimer >= 15) { saveTimer = 0; E.save(); }
   }
@@ -392,7 +514,8 @@
 
     nextGolden = Date.now() + 60000 + Math.random() * 90000;
     lastFrame = performance.now();
-    setInterval(frame, 50);
+    setLoopRate();
+    watchBattery();
   }
 
   // Small debug hook for the browser console and tests
@@ -403,6 +526,8 @@
     spawnGolden: () => ui().spawnGolden(),
     encodeSave: () => E.encodeSave(), decodeSave: str => E.decodeSave(str), save: () => E.save(),
     moveCode: () => packMove(E.transferJSON()),
+    nap: { start: startNap, wake, get on() { return !!PI.napping; }, idleFor: ms => { lastInput = Date.now() - ms; } },
+    get loopMs() { return loopMs; },
   };
 
   init();

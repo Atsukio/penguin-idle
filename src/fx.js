@@ -37,19 +37,23 @@
     init() {
       this.canvas = document.getElementById("fxCanvas");
       this.ctx = this.canvas.getContext("2d");
-      const resize = () => {
-        this.dpr = Math.min(2, window.devicePixelRatio || 1);
-        this.canvas.width = Math.round(innerWidth * this.dpr);
-        this.canvas.height = Math.round(innerHeight * this.dpr);
-      };
-      resize();
-      window.addEventListener("resize", resize);
+      this.resize();
+      window.addEventListener("resize", () => this.resize());
       document.addEventListener("visibilitychange", () => { if (!document.hidden) this.start(); });
       this.start();
     },
 
+    // The battery saver draws at normal resolution instead of the screen's sharper one
+    resize() {
+      this.dpr = PI.powerSaving ? 1 : Math.min(2, window.devicePixelRatio || 1);
+      this.canvas.width = Math.round(innerWidth * this.dpr);
+      this.canvas.height = Math.round(innerHeight * this.dpr);
+    },
+    // Napping: drop everything in flight, so the canvas stops on its next frame
+    clear() { this.list.forEach(p => { if (this.pool.length < this.MAX) this.pool.push(p); }); this.list.length = 0; },
+
     get(props) {
-      if (this.list.length >= this.MAX) return null;
+      if (this.list.length >= this.MAX || PI.napping) return null;
       const p = this.pool.pop() || {};
       Object.assign(p, { vx: 0, vy: 0, g: 0, rot: 0, vr: 0, age: 0, size: 16, alpha: 1, color: "#fff", text: "", onDone: null }, props);
       this.list.push(p);
@@ -58,7 +62,7 @@
     },
 
     start() {
-      if (this.running || document.hidden) return;
+      if (this.running || document.hidden || PI.napping) return;
       this.running = true;
       this.last = performance.now();
       requestAnimationFrame(t => this.frame(t));
@@ -67,7 +71,7 @@
     // Each shore has its own weather (set by the colony scene). Rates are particles per second.
     weather: "snow",
     setWeather(id) { this.weather = WEATHER[id] ? id : "snow"; this.start(); },
-    snowWanted() { return S().settings.particles && motionOK(); },
+    snowWanted() { return S().settings.particles && motionOK() && !PI.powerSaving && !PI.napping; },
     // On a device that can't keep up, the weather eases off (down to a quarter) and comes back when it recovers.
     // Only the weather: pats, purchases and golden fish keep their full feedback.
     weatherScale: 1, frameAvg: 1 / 60, perfTimer: 0,
@@ -259,7 +263,7 @@
     },
     play(name) {
       const st = S().settings;
-      if (!st.sound || st.volume <= 0) return;
+      if (!st.sound || st.volume <= 0 || PI.napping) return;   // auto-pats and the like stay quiet during a nap
       const c = this.ensure();
       if (!c) return;
       const t = c.currentTime + 0.01;

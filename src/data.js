@@ -38,6 +38,14 @@
   // worker's CACHE must be "penguin-idle-v<version>" (tools/check-data.js fails CI otherwise), so
   // installed copies always pick up the update.
   const CHANGELOG = [
+    { version: "4.2", date: "2026-11-06", title: "Nap time", notes: [
+      "Tap 💤 (or press Z) to let the colony nap: a dark, nearly still screen that goes easy on your battery while the fishing carries on at full pace.",
+      "The game can nap by itself when you leave it alone for a while (Settings → Nap by itself).",
+      "A battery saver calms the weather and scenery. It switches on by itself when your battery runs low, or you can keep it on.",
+      "Two new memories for napping, and a Nightcap for the big penguin.",
+      "Residents come with cute names. Tap 🎲 by a name for another.",
+      "All notifications now sit in the bottom-left corner, and a click puts them away.",
+    ] },
     { version: "4.1", date: "2026-11-05", title: "News from the colony", notes: [
       "There's a What's new page in Settings, and a little note when the game updates.",
       "Rubbing the penguin makes a soft stroking sound, and the mitten tilts as you rub. There are two new memories for it.",
@@ -515,6 +523,7 @@
       { id: "scholar",   name: "Scholar's Cap",    emoji: "🎓", need: s => s.achievements.includes("res_max"), unlockText: "Max out a Workshop project" },
       { id: "crown",     name: "Little Crown",     emoji: "👑", need: s => (s.heritage.emperor || 0) > 0, unlockText: "Learn Emperor's Blessing" },
       { id: "sunhat",    name: "Sun Hat",          emoji: "👒", ...seasonal("sunlit") },
+      { id: "nightcap",  name: "Nightcap",         beanie: ["#3b4a8a", "#f6e7b0", "#2c3970"], need: s => s.achievements.includes("nap_hour"), unlockText: "Nap for an hour" },
     ],
     scarf: [
       { id: "coral",    name: "Coral Scarf",       colors: ["#e8735a", "#f6d7b0"], need: () => true, unlockText: "Always yours" },
@@ -542,6 +551,14 @@
     ["Grandma Pebble", "👵"], ["Captain Flipper", "🧑‍✈️"], ["Little Sprout", "🐣"], ["Old Man Iceberg", "🧓"],
     ["Auntie Krill", "🦐"], ["Professor Waddle", "🧐"], ["Cousin Puddle", "🐧"],
   ];
+  // Cute names for residents the player hasn't named (and for the 🎲 button). Keep them short: tags are small.
+  const CUTE_NAMES = [
+    "Mochi", "Pebble", "Biscuit", "Dumpling", "Noodle", "Waffles", "Button", "Pudding", "Sprinkle", "Tofu",
+    "Bean", "Muffin", "Pickle", "Snowpea", "Nugget", "Cocoa", "Marshmallow", "Pip", "Bubbles", "Crumpet",
+    "Sushi", "Truffle", "Jellybean", "Popcorn", "Flurry", "Puffin", "Tater", "Squeak", "Dot", "Bonbon",
+    "Wiggles", "Toffee", "Pancake", "Sesame", "Clover", "Peanut", "Frosty", "Bramble", "Taffy", "Mittens",
+    "Gumdrop", "Kiwi", "Cupcake", "Scampi", "Domino", "Poppy", "Flapjack", "Snowball", "Hazel", "Churro",
+  ];
   const LETTER_TYPES = [
     { id: "pats",     stat: "clicks",          range: [100, 300], text: n => `Could you give the big penguin ${fmt(n)} pats? They've been a bit lonely.` },
     { id: "build",    stat: "buildingsBought", range: [10, 30],   text: n => `We need more flippers! Please welcome ${fmt(n)} new colony members.` },
@@ -568,6 +585,8 @@
   ach("name_all", "Everyone Has a Name", "Name six residents.", s => (s.names || []).filter(Boolean).length >= 6, "🏷️");
   ach("music_hour", "Lofi Listener", "Listen to the colony's music for an hour.", s => s.stats.musicSeconds >= 3600, "🎧");
   ach("rub_100", "Belly Rubs", "Pat the penguin 100 times by rubbing it.", s => s.stats.rubPats >= 100, "🫳");
+  ach("nap_hour", "Power Nap", "Let the colony nap for an hour in total (💤 in the top bar).", s => s.stats.napSeconds >= 3600, "🌙");
+  ach("nap_day", "Hibernation Champion", "Let the colony nap for 8 hours in total.", s => s.stats.napSeconds >= 8 * 3600, "🛌");
   ach("rub_5000", "Belly Rub Expert", "Pat the penguin 5,000 times by rubbing it.", s => s.stats.rubPats >= 5000, "💆");
 
   PI.fmt = fmt;
@@ -578,6 +597,6 @@
     BUILDINGS, B_BY_ID, TIER_REQS, TIER_COSTS, TIER_NUMERALS, BUILDING_UPGRADES,
     UPGRADES, UP_BY_ID, SYNERGIES, RESEARCH, R_BY_ID, TREE, H_BY_ID, BRANCH_NAMES, totalColony,
     ACHIEVEMENTS, HELPERS, HELPER_BY_ID, SHORES, SHORE_BY_ID, SEASONS, SEASON_BY_ID,
-    COSMETICS, COSMETIC_SLOTS, LETTER_SENDERS, LETTER_TYPES,
+    COSMETICS, COSMETIC_SLOTS, LETTER_SENDERS, LETTER_TYPES, CUTE_NAMES,
   };
 })(typeof globalThis !== "undefined" ? (globalThis.PI = globalThis.PI || {}) : (window.PI = window.PI || {}));

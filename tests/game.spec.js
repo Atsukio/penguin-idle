@@ -436,11 +436,15 @@ test("residents can be named: tags in the scene, saved, cleaned and remembered",
   await first.press("Enter");
   await expect(first).toHaveValue("Pip");
   expect(await state(page, () => window.penguinIdle.state.names)).toEqual(["Pip"]);
-  await expect(page.locator("#waddlers .w-tag")).toHaveText(["Pip"]);
+  await expect(page.locator("#waddlers .w-tag").first()).toHaveText("Pip");
   await page.locator('#friendNames input[data-slot="2"]').fill("<i>Waddles</i>");
   await page.locator('#friendNames input[data-slot="2"]').press("Enter");
   expect(await state(page, () => window.penguinIdle.state.names)).toEqual(["Pip", "", "iWaddles/i"]);
-  await expect(page.locator("#waddlers .w-tag")).toHaveText(["Pip", "iWaddles/i"]);
+  // One tag per penguin in the scene; unnamed ones keep their cute default, and nobody else is called Pip
+  const shown = await page.locator("#waddlers .waddler").count();
+  const now = await state(page, () => window.penguinIdle.state.defaultNames);
+  expect(now.filter((n, i) => i !== 0 && i !== 2)).not.toContain("Pip");
+  await expect(page.locator("#waddlers .w-tag")).toHaveText(["Pip", now[1], "iWaddles/i", ...now.slice(3)].slice(0, shown));
   const back = await page.evaluate(() => { const g = window.penguinIdle; g.engine.checkAchievements(); return [g.decodeSave(g.encodeSave()).names, g.state.achievements.includes("name_1")]; });
   expect(back).toEqual([["Pip", "", "iWaddles/i"], true]);
   await first.fill("");
@@ -582,13 +586,12 @@ test("a throttled background tab still earns at full rate", async ({ page }) => 
   await expect(page.locator(".modal")).toHaveCount(0);
 });
 
-test("milestone toasts appear on the left, and clicking any toast dismisses it", async ({ page }) => {
+test("toasts appear on the left, and clicking one dismisses it", async ({ page }) => {
   await page.goto("/");
   await closeModals(page);
   await page.evaluate(() => { const g = window.penguinIdle; g.state.fish = 1e6; g.state.buildings.chick = 9; g.engine.recompute(); g.engine.buyBuilding("chick", 1); });
-  const ms = page.locator("#milestoneToasts .toast", { hasText: "Milestone!" });
+  const ms = page.locator("#toasts .toast", { hasText: "Milestone!" });
   await expect(ms).toBeVisible();
-  await expect(page.locator("#toasts .toast", { hasText: "Milestone!" })).toHaveCount(0);
   const box = await ms.boundingBox();
   expect(box.x).toBeLessThan(page.viewportSize().width / 2);
   await ms.click();
@@ -617,4 +620,115 @@ test("Foreman Waddles buys cheaper members while the best value is far off", asy
   });
   await expect.poll(() => state(page, () => window.penguinIdle.state.buildings.chick), { timeout: 5000 }).toBeGreaterThan(1);
   expect(await state(page, () => window.penguinIdle.state.buildings.fisher || 0)).toBe(0);
+});
+
+test("residents come with cute default names, and the dice picks another", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  await page.evaluate(() => { const g = window.penguinIdle; g.state.buildings.chick = 12; g.engine.recompute(); g.engine.bus.emit("structure"); });
+  const d = await state(page, () => window.penguinIdle.state.defaultNames);
+  expect(d).toHaveLength(6);
+  expect(new Set(d).size).toBe(6);
+  const cute = await page.evaluate(() => PI.data.CUTE_NAMES);
+  d.forEach(n => expect(cute).toContain(n));
+  // They show as tags straight away, and stay the same after a reload
+  await expect(page.locator("#waddlers .w-tag")).toHaveText(d.slice(0, await page.locator("#waddlers .waddler").count()));
+  await page.evaluate(() => window.penguinIdle.engine.save());
+  await page.reload();
+  await closeModals(page);
+  expect(await state(page, () => window.penguinIdle.state.defaultNames)).toEqual(d);
+  // Defaults don't count as naming anyone
+  expect(await page.evaluate(() => { window.penguinIdle.engine.checkAchievements(); return window.penguinIdle.state.achievements.includes("name_1"); })).toBe(false);
+  // The empty box shows the default; the dice gives a new name that isn't already taken
+  await page.keyboard.press("4");   // Home
+  const first = page.locator('#friendNames input[data-slot="0"]');
+  await expect(first).toHaveAttribute("placeholder", d[0]);
+  await expect(first).toHaveValue("");
+  await page.locator('[data-roll="0"]').click();
+  const rolled = await first.inputValue();
+  expect(cute).toContain(rolled);
+  expect(d).not.toContain(rolled);
+  expect(await state(page, () => window.penguinIdle.state.names[0])).toBe(rolled);
+  // Clearing it gives the default back
+  await first.fill("");
+  await first.press("Enter");
+  await expect(page.locator("#waddlers .w-tag").first()).toHaveText(d[0]);
+});
+
+test("napping shows a dark, low-power screen that keeps fishing, and any key wakes it", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  await page.evaluate(() => { const g = window.penguinIdle; g.state.buildings.fisher = 50; g.state.fish = 1e9; g.engine.recompute(); g.engine.bus.emit("structure"); });
+  expect(await state(page, () => window.penguinIdle.loopMs)).toBe(50);
+  await page.locator("#napBtn").click();
+  await expect(page.locator("#napScreen")).toBeVisible();
+  await expect(page.locator("#layout")).toBeHidden();
+  await expect(page.locator("#topbar")).toBeHidden();
+  await expect(page.locator("#napSvg .p-eyes")).toHaveCount(1);   // the big penguin, fast asleep
+  expect(await state(page, () => window.penguinIdle.loopMs)).toBe(1000);
+  expect(await state(page, () => PI.fx.Particles.snowWanted())).toBe(false);
+  // The colony keeps fishing, and the nap screen keeps count
+  const before = await state(page, () => window.penguinIdle.state.fish);
+  await page.waitForTimeout(2200);
+  expect(await state(page, () => window.penguinIdle.state.fish)).toBeGreaterThan(before);
+  await expect(page.locator("#napFish")).toHaveText(await state(page, () => window.penguinIdle.fmt(Math.floor(window.penguinIdle.state.fish))));
+  expect(await state(page, () => window.penguinIdle.state.stats.napSeconds)).toBeGreaterThan(1);
+  // Any key wakes it, and only wakes it: B doesn't also buy upgrades
+  const ups = await state(page, () => window.penguinIdle.state.upgrades.length);
+  await page.keyboard.press("b");
+  await expect(page.locator("#napScreen")).toBeHidden();
+  await expect(page.locator("#layout")).toBeVisible();
+  expect(await state(page, () => window.penguinIdle.state.upgrades.length)).toBe(ups);
+  expect(await state(page, () => window.penguinIdle.loopMs)).toBe(50);
+  // Z naps, a tap wakes
+  await page.keyboard.press("z");
+  await expect(page.locator("#napScreen")).toBeVisible();
+  await page.locator("#napScreen").click({ position: { x: 10, y: 10 } });
+  await expect(page.locator("#napScreen")).toBeHidden();
+});
+
+test("the colony naps by itself after the chosen idle time", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  await page.keyboard.press("6");
+  await page.locator("#optAutoNap").selectOption("5");
+  expect(await state(page, () => window.penguinIdle.state.settings.autoNap)).toBe(5);
+  await page.waitForTimeout(1500);
+  expect(await state(page, () => window.penguinIdle.nap.on)).toBe(false);   // not idle long enough yet
+  await page.evaluate(() => window.penguinIdle.nap.idleFor(5 * 60000 + 1000));
+  await expect(page.locator("#napScreen")).toBeVisible();
+  await page.locator("#napWake").click();
+  await expect(page.locator("#napScreen")).toBeHidden();
+});
+
+test("battery saver rests the weather and slows the loop, and is remembered", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  await page.keyboard.press("6");
+  await page.locator("#optBatterySaver").selectOption("on");
+  await expect(page.locator("html")).toHaveClass(/power-saver/);
+  expect(await state(page, () => window.penguinIdle.loopMs)).toBe(250);
+  expect(await state(page, () => PI.fx.Particles.snowWanted())).toBe(false);
+  await page.evaluate(() => window.penguinIdle.save());
+  await page.reload();
+  await closeModals(page);
+  await expect(page.locator("html")).toHaveClass(/power-saver/);
+  expect(await state(page, () => window.penguinIdle.loopMs)).toBe(250);
+  await page.keyboard.press("6");
+  await page.locator("#optBatterySaver").selectOption("off");
+  await expect(page.locator("html")).not.toHaveClass(/power-saver/);
+  expect(await state(page, () => window.penguinIdle.loopMs)).toBe(50);
+});
+
+test("an hour of napping earns a memory and the Nightcap", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  const got = await page.evaluate(() => {
+    const g = window.penguinIdle;
+    const before = g.engine.cosmeticUnlocked("hat", "nightcap");
+    g.state.stats.napSeconds = 3600;
+    g.engine.checkAchievements();
+    return { before, mem: g.state.achievements.includes("nap_hour"), cap: g.engine.cosmeticUnlocked("hat", "nightcap") };
+  });
+  expect(got).toEqual({ before: false, mem: true, cap: true });
 });

@@ -94,10 +94,9 @@
   // =====================================================================
   // Toasts (memories are grouped so a burst of unlocks doesn't bury the screen)
   // =====================================================================
-  // side "left" is for milestones, so they don't pile up with everything else on the right.
-  // Clicking a toast (anywhere but its button) dismisses it.
-  function toast(html, side = "right") {
-    const box = $(side === "left" ? "milestoneToasts" : "toasts");
+  // Toasts stack in the bottom-left corner. Clicking one (anywhere but its button) dismisses it.
+  function toast(html) {
+    const box = $("toasts");
     const el = document.createElement("div");
     el.className = "toast";
     el.innerHTML = html;
@@ -654,6 +653,7 @@
       ["Letters answered", fmt(st.lettersClaimed)],
       ["Catches carried to the basket", fmt(st.deliveries)],
       ["Music listened to", fmtTime(st.musicSeconds)],
+      ["Time spent napping", fmtTime(st.napSeconds)],
       ["Feather bonus", `+${fmt((M().feather - 1) * 100)}%`],
       ["Memories bonus", `+${fmt((M().ach - 1) * 100)}%`],
       ["This migration started", `${fmtTime((E.now() - st.runStartedAt) / 1000)} ago`],
@@ -803,16 +803,24 @@
   function buildFriends() {
     const box = $("friendNames");
     box.innerHTML = Array.from({ length: E.NAME_SLOTS }, (_, i) =>
-      `<label class="friend"><span aria-hidden="true">🐧</span><input type="text" maxlength="16" data-slot="${i}" placeholder="Name a resident" aria-label="Resident ${i + 1}'s name" autocomplete="off" spellcheck="false"></label>`).join("");
+      `<label class="friend"><span aria-hidden="true">🐧</span><input type="text" maxlength="16" data-slot="${i}" aria-label="Resident ${i + 1}'s name" autocomplete="off" spellcheck="false"><button type="button" class="friend-roll" data-roll="${i}" title="Pick a cute name" aria-label="Pick a cute name for resident ${i + 1}">🎲</button></label>`).join("");
     box.querySelectorAll("input").forEach(inp => {
-      const commit = () => { if (E.setName(Number(inp.dataset.slot), inp.value)) E.save(); inp.value = S().names[inp.dataset.slot] || ""; };
+      const commit = () => { if (E.setName(Number(inp.dataset.slot), inp.value)) E.save(); fillFriends(); };
       inp.addEventListener("change", commit);
       inp.addEventListener("keydown", e => { if (e.key === "Enter") { commit(); inp.blur(); } });
     });
+    box.querySelectorAll("[data-roll]").forEach(btn => btn.addEventListener("click", () => {
+      const i = Number(btn.dataset.roll);
+      if (E.setName(i, E.suggestName(i))) E.save();
+      fillFriends();
+      PI.fx.Sound.play("pop");
+    }));
     fillFriends();
   }
+  // An unnamed slot shows its cute default as the placeholder: clearing a name gives the default back
   function fillFriends() {
     $("friendNames").querySelectorAll("input").forEach(inp => {
+      inp.placeholder = S().defaultNames[inp.dataset.slot] || "Name a resident";
       if (document.activeElement !== inp) inp.value = S().names[inp.dataset.slot] || "";
     });
   }
@@ -929,7 +937,7 @@
 
   function startChat() {
     const colony = $("colony");
-    if (document.hidden || colony.querySelector(".chat-bubble")) return false;
+    if (document.hidden || PI.napping || colony.querySelector(".chat-bubble")) return false;
     const idle = [...$("waddlers").children].filter(p => !p.classList.contains("walking") && !p.dataset.busy);
     if (idle.length < 2) return false;
     // Huddled penguins chat with each other by the fire; the rest find a neighbour
@@ -1046,7 +1054,7 @@
   }
 
   function startWork() {
-    if (document.hidden || S().settings.reduceMotion) return false;
+    if (document.hidden || PI.napping || S().settings.reduceMotion) return false;
     updateBasket();   // the hole appears with the first colony member
     const all = [...$("waddlers").children];
     const kinds = D.BUILDINGS.filter(b => S().buildings[b.id] > 0).length;
@@ -1153,7 +1161,7 @@
   };
 
   function propAct() {
-    if (document.hidden || S().settings.reduceMotion) return;
+    if (document.hidden || PI.napping || S().settings.reduceMotion) return;
     const cands = [...$("props").querySelectorAll("[data-id]")].map(el => ({ el, a: PROP_ACTS[el.dataset.id], w: Math.sqrt(fpsOf(el.dataset.id)) }))
       .filter(x => x.a && x.w > 0);
     if (!cands.length) return;
@@ -1286,7 +1294,7 @@
   let shownFish = 0;
   function tickCounter() {
     const real = S().fish;
-    shownFish = Math.abs(real - shownFish) / Math.max(1, real) < 0.002 || S().settings.reduceMotion ? real : shownFish + (real - shownFish) * 0.35;
+    shownFish = Math.abs(real - shownFish) / Math.max(1, real) < 0.002 || S().settings.reduceMotion || PI.powerSaving ? real : shownFish + (real - shownFish) * 0.35;
     setText($("fish"), fmt(Math.floor(shownFish)));
   }
 
@@ -1341,7 +1349,7 @@
     bus.on("letters", () => { if (currentTab === "home") renderLetters(); updateBadges(); });
     bus.on("outfit", () => { if (currentTab === "home") renderWardrobe(); });
     bus.on("buyBuilding", d => arrival(d.id));
-    bus.on("milestone", d => toast(`<b>Milestone!</b> ${d.b.plural} now catch ${d.mult === 2 ? "twice" : `${+d.mult.toFixed(2)}×`} as many fish.`, "left"));
+    bus.on("milestone", d => toast(`<b>Milestone!</b> ${d.b.plural} now catch ${d.mult === 2 ? "twice" : `${+d.mult.toFixed(2)}×`} as many fish.`));
     bus.on("buyAll", d => toast(`🛍️ Bought <b>${d.count}</b> upgrade${d.count > 1 ? "s" : ""}.`));
     bus.on("golden", d => toast(d.auto ? `📯 Lookout Lumi caught a golden fish! ${d.msg}` : d.msg));
     bus.on("achievements", list => queueMemories(list));
@@ -1474,7 +1482,7 @@
 
   PI.ui = {
     init, tick, slowTick, openModal, toast, selectTab, spawnGolden, bumpCounter, migrateFlow,
-    cycleBuyAmount, refreshStructure, renderTab, closeSheet, updateBadges, renderNextGoal, chatNow: startChat, workNow: startWork, propNow: propAct,
+    cycleBuyAmount, refreshStructure, renderTab, closeSheet, hideTooltip, updateBadges, renderNextGoal, chatNow: startChat, workNow: startWork, propNow: propAct,
     buildingRow: id => els[id] && els[id].root,
     get modalOpen() { return modals.length > 0; },
     get currentTab() { return currentTab; },
