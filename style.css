@@ -447,7 +447,13 @@ h2 { font-size: 1.1rem; margin: 16px 0 8px; letter-spacing: .01em; }
 .a-bar span { display: block; height: 100%; background: var(--gold); border-radius: 4px; }
 .ach-near { margin: 0 0 12px; }
 .next-goal.clickable { cursor: pointer; text-decoration: underline dotted; }
-.near-pill { background: var(--gold); }
+/* Home badge: a ring fills with the share of letters claimed; it pulses when one is ready */
+#homeBadge { --done: 0; background: conic-gradient(var(--gold) calc(var(--done) * 1%), rgba(255, 255, 255, .22) 0); color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, .5); }
+#homeBadge.ready { animation: home-pulse 1.6s ease-in-out infinite; box-shadow: 0 0 0 2px var(--gold); }
+@keyframes home-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.18); } }
+html.reduce-motion #homeBadge.ready { animation: none; }
+.reset-in { font-size: .8rem; color: var(--muted); align-self: center; font-variant-numeric: tabular-nums; }
+.reset-in:empty { display: none; }
 .letter-reset { font-size: .85rem; margin: -4px 0 8px; }
 .ach-near.hidden { display: none; }
 .ach-near h3 { font-size: .95rem; margin: 0 0 6px; }

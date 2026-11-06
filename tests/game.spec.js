@@ -948,6 +948,12 @@ test("memories: hide collected, the close count, a Mailbox countdown, and the ne
   // Daily letters reset: a countdown to midnight is shown in the Mailbox
   await page.locator('[data-tab="home"]').click();
   await expect(page.locator("#letterReset")).toHaveText(/New letters in \d+h \d{2}m/);
+  // The Home badge counts the mailbox items still left
+  const left = await page.evaluate(() => window.penguinIdle.state.letters.list.filter(l => !l.claimed).length);
+  await expect(page.locator("#homeBadge")).toHaveText(String(left));
+  // The same countdown is in the top bar, and the Home badge ring tracks the claimed share
+  await expect(page.locator("#resetIn")).toHaveText(/Letters reset in \d+h \d{2}m/);
+  await expect(page.locator("#homeBadge")).toHaveAttribute("style", /--done/);
   // Hide collected: a collected memory disappears from the grid
   await page.evaluate(() => { const g = window.penguinIdle; g.state.achievements.push("fish_1"); });
   await page.locator('[data-tab="achievements"]').click();
@@ -958,7 +964,6 @@ test("memories: hide collected, the close count, a Mailbox countdown, and the ne
   // Memory nearly done: the pill counts it and the next-goal line links to the tab
   await page.evaluate(() => { window.penguinIdle.state.stats.clicks = 95; });
   await page.locator('[data-tab="colony"]').click();
-  await expect(page.locator("#achClose")).toContainText("close", { timeout: 8000 });
   await expect(page.locator("#nextGoal")).toHaveClass(/clickable/);
   await page.locator("#nextGoal").click();
   await expect(page.locator("#tab-achievements")).toBeVisible();

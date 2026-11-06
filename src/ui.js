@@ -1295,14 +1295,19 @@
 
   function updateBadges() {
     setText($("achCount"), `${S().achievements.length}/${D.ACHIEVEMENTS.length}`);
-    const close = nearMemoryList().length;
-    $("achClose").classList.toggle("hidden", !close);
-    setText($("achClose"), close ? `${close} close` : "");
-    const claimable = S().letters.list.filter(l => !l.claimed && E.letterProgress(l) >= l.target).length
-      + (S().letters.list.length && S().letters.list.every(l => l.claimed) && !S().letters.bonus ? 1 : 0);
+    // Home: how many mailbox items are still left (unclaimed letters, plus the bonus once they're all done).
+    // Gold when something is ready to claim.
+    const letters = S().letters.list;
+    const left = letters.filter(l => !l.claimed).length + (letters.length && letters.every(l => l.claimed) && !S().letters.bonus ? 1 : 0);
+    const claimable = letters.filter(l => !l.claimed && E.letterProgress(l) >= l.target).length
+      + (letters.length && letters.every(l => l.claimed) && !S().letters.bonus ? 1 : 0);
     const lb = $("homeBadge");
-    setText(lb, claimable ? String(claimable) : "");
-    lb.classList.toggle("hidden", !claimable);
+    setText(lb, left ? String(left) : "");
+    lb.classList.toggle("hidden", !left);
+    lb.classList.toggle("ready", claimable > 0);
+    // The ring fills with the share of this round's letters already claimed
+    const claimed = letters.filter(l => l.claimed).length;
+    lb.style.setProperty("--done", String(letters.length ? Math.round((claimed / letters.length) * 100) : 0));
     $("migrateBadge").classList.toggle("hidden", !migrateIsGood());
     const news = hasNews();
     $("newsBadge").classList.toggle("hidden", !news);
@@ -1319,11 +1324,13 @@
   }
 
   // What you're saving up for, under the penguin
-  // Countdown to the daily letters reset (local midnight)
+  // Countdown to the daily letters reset (local midnight), in the Mailbox and the top bar
   function renderLetterReset() {
     const secs = E.secsToNewDay(new Date(E.now()));
     const h = Math.floor(secs / 3600), mi = Math.floor((secs % 3600) / 60);
-    setText($("letterReset"), `New letters in ${h}h ${String(mi).padStart(2, "0")}m`);
+    const left = `${h}h ${String(mi).padStart(2, "0")}m`;
+    setText($("letterReset"), `New letters in ${left}`);
+    setText($("resetIn"), `Letters reset in ${left}`);
   }
   function renderNextGoal() {
     const g = E.nextGoal(), el = $("nextGoal");
@@ -1350,6 +1357,7 @@
   // Smoothly rolling fish counter: eases toward the real value instead of jumping
   let shownFish = 0;
   function tickCounter() {
+    renderLetterReset();
     const real = S().fish;
     shownFish = Math.abs(real - shownFish) / Math.max(1, real) < 0.002 || S().settings.reduceMotion || PI.powerSaving ? real : shownFish + (real - shownFish) * 0.35;
     setText($("fish"), fmt(Math.floor(shownFish)));
