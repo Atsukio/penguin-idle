@@ -538,7 +538,10 @@
       const [sender, icon] = LETTER_SENDERS[Math.floor(rng() * LETTER_SENDERS.length)];
       return { type: t.id, target, base: statValue(t.stat), claimed: false, sender, icon };
     });
-    S.letters = { day, list, bonus: false };
+    // Save the letters: a letter from yesterday that was never answered stays open for one more day, marked late
+    const yesterday = dayKey(new Date(date.getFullYear(), date.getMonth(), date.getDate() - 1));
+    const carried = S.letters.day === yesterday ? S.letters.list.filter(l => !l.claimed && !l.late).map(l => ({ ...l, late: true })) : [];
+    S.letters = { day, list: [...carried, ...list], bonus: false };
     bus.emit("letters");
     return true;
   }
@@ -555,8 +558,11 @@
     return true;
   }
 
+  // The care package counts today's three letters only; late letters from yesterday don't block it
+  const todaysLetters = () => S.letters.list.filter(l => !l.late);
   function claimLetterBonus(origin = null) {
-    if (S.letters.bonus || !S.letters.list.length || !S.letters.list.every(l => l.claimed)) return false;
+    const today = todaysLetters();
+    if (S.letters.bonus || !today.length || !today.every(l => l.claimed)) return false;
     S.letters.bonus = true;
     const secs = Math.round(180 * M.goldenDur);
     addBuff("prod", "Care Package", 7, secs * 1000);
@@ -816,8 +822,8 @@
     if (typeof L.day === "string" && Array.isArray(L.list)) {
       s.letters.day = L.day;
       s.letters.bonus = L.bonus === true;
-      s.letters.list = L.list.filter(l => l && LT_BY_ID[l.type]).slice(0, 3).map(l => ({
-        type: l.type, target: Math.max(1, num(l.target)), base: num(l.base), claimed: l.claimed === true,
+      s.letters.list = L.list.filter(l => l && LT_BY_ID[l.type]).slice(0, 6).map(l => ({
+        type: l.type, target: Math.max(1, num(l.target)), base: num(l.base), claimed: l.claimed === true, late: l.late === true,
         sender: String(l.sender || "A friend").slice(0, 40), icon: String(l.icon || "🐧").slice(0, 8),
       }));
     }
@@ -920,7 +926,7 @@
     cosmeticItem, cosmeticUnlocked, setOutfit, addNapTime, napStreakNow,
     NAME_SLOTS, cleanName, setName, residentNames, playerNames, suggestName, ensureDefaultNames,
     goldenDelay, goldenEffect,
-    dayKey, ensureLetters, letterProgress, letterReward, claimLetter, claimLetterBonus,
+    dayKey, ensureLetters, letterProgress, todaysLetters, letterReward, claimLetter, claimLetterBonus,
     checkAchievements, runHelpers, tick, applyOffline,
     encodeSave, decodeSave, save, load, SaveError, transferJSON, fromTransferJSON, nextGoal, memoryProgress, nearestMemories, secsToNewDay,
   });

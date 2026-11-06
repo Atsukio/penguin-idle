@@ -578,8 +578,8 @@
     const lt = id => D.LETTER_TYPES.find(t => t.id === id);
     const html = L.list.map((l, i) => {
       const prog = E.letterProgress(l), done = prog >= l.target;
-      return `<div class="letter${l.claimed ? " claimed" : done ? " ready" : ""}">
-        <div class="l-from"><span aria-hidden="true">${l.icon}</span> From <b>${l.sender}</b></div>
+      return `<div class="letter${l.claimed ? " claimed" : done ? " ready" : ""}${l.late ? " late" : ""}">
+        <div class="l-from"><span aria-hidden="true">${l.icon}</span> From <b>${l.sender}</b>${l.late ? ' <span class="late-tag">Late · from yesterday</span>' : ""}</div>
         <p class="l-text">${lt(l.type).text(l.target)}</p>
         <div class="l-bar" aria-hidden="true"><div style="width:${(prog / l.target) * 100}%"></div></div>
         <div class="l-foot"><span>${fmt(prog)} / ${fmt(l.target)}</span>
@@ -590,10 +590,12 @@
     if (setHTML($("letters"), html)) {
       $("letters").querySelectorAll("[data-claim]").forEach(b => b.addEventListener("click", e => E.claimLetter(Number(b.dataset.claim), pointFrom(e, b))));
     }
-    const allDone = L.list.length && L.list.every(l => l.claimed);
+    const today = E.todaysLetters();
+    const allDone = today.length && today.every(l => l.claimed);
+    const late = L.list.some(l => l.late) ? " Late letters from yesterday stay open until midnight." : "";
     const bonus = L.bonus ? '<p class="muted">📦 Today\'s care package has been opened. New letters arrive tomorrow.</p>'
       : allDone ? '<button class="btn primary" id="bonusBtn">📦 Open the care package (production ×7 for a while)</button>'
-      : '<p class="muted">Answer all three letters today for a care package. New letters arrive each day, with no pressure to keep a streak.</p>';
+      : `<p class="muted">Answer all three letters today for a care package. New letters arrive each day, with no pressure to keep a streak.${late}</p>`;
     if (setHTML($("letterBonus"), bonus) && $("bonusBtn")) $("bonusBtn").addEventListener("click", e => E.claimLetterBonus(pointFrom(e, $("bonusBtn"))));
   }
 
@@ -622,20 +624,47 @@
   // =====================================================================
   // Memories and stats
   // =====================================================================
+  // "Ends in N days" or "starts in N days" for the real-date seasonal event, found by walking forward day by day.
+  // Cached per local day, so it costs nothing on the frame loop.
+  let seasonNoteDay = "", seasonNoteText = "";
+  function seasonNote() {
+    const now = new Date(E.now());
+    const key = E.dayKey(now);
+    if (key === seasonNoteDay) return seasonNoteText;
+    seasonNoteDay = key;
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12);
+    const cur = E.currentSeason(start);
+    seasonNoteText = "";
+    for (let d = 1; d <= 366; d++) {
+      const day = new Date(start.getFullYear(), start.getMonth(), start.getDate() + d, 12);
+      const se = E.currentSeason(day);
+      if ((se ? se.id : "") !== (cur ? cur.id : "")) {
+        const when = d === 1 ? "tomorrow" : `in ${d} days`;
+        seasonNoteText = cur ? `${cur.icon} ${cur.name} ends ${when}.` : `${se.icon} ${se.name} starts ${when}.`;
+        break;
+      }
+    }
+    return seasonNoteText;
+  }
+
   function renderAchievements() {
+    setText($("seasonNote"), seasonNote());
+    $("seasonNote").classList.toggle("hidden", !seasonNote());
     const card = (a, extra = "") => {
       const done = S().achievements.includes(a.id);
-      let prog = "";
+      let prog = "", almost = "";
       const p = !done && E.memoryProgress(a);
       if (p) {
         const pct = Math.floor(p.frac * 100);
         const show = v => (p.kind === "time" ? fmtTime(v) : fmt(Math.floor(v)));
+        // At 90% or more the card gets an "Almost!" marker and a glowing bar, instead of a toast
+        if (pct >= 90) almost = ' <span class="a-almost">Almost!</span>';
         prog = `<div class="a-prog ${pct >= 90 ? "hot" : ""}" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-label="Progress">
           <div class="a-bar"><span style="width:${pct}%"></span></div><div class="a-num">${show(p.cur)} / ${show(p.goal)}</div></div>`;
       } else if (!done && a.hint) prog = `<div class="a-hint">💡 ${a.hint}</div>`;
       return `<div class="ach ${done ? "done" : ""} ${extra}">
         <div class="a-icon" aria-hidden="true">${a.icon}${a.badge ? `<span class="a-badge">${a.badge}</span>` : ""}</div>
-        <div><div class="name">${a.name}${done ? "" : ' <span class="visually-hidden">(locked)</span>'}</div><div class="desc">${a.desc}</div>${prog}</div></div>`;
+        <div><div class="name">${a.name}${done ? "" : ' <span class="visually-hidden">(locked)</span>'}${almost}</div><div class="desc">${a.desc}</div>${prog}</div></div>`;
     };
     // Memories that are more than halfway done float to a "Nearly there" row
     const near = E.nearestMemories(3, 0.5);
@@ -1298,16 +1327,18 @@
     // Home: how many mailbox items are still left (unclaimed letters, plus the bonus once they're all done).
     // Gold when something is ready to claim.
     const letters = S().letters.list;
-    const left = letters.filter(l => !l.claimed).length + (letters.length && letters.every(l => l.claimed) && !S().letters.bonus ? 1 : 0);
-    const claimable = letters.filter(l => !l.claimed && E.letterProgress(l) >= l.target).length
-      + (letters.length && letters.every(l => l.claimed) && !S().letters.bonus ? 1 : 0);
+    const today = E.todaysLetters();
+    const bonusDue = today.length && today.every(l => l.claimed) && !S().letters.bonus ? 1 : 0;
+    const left = letters.filter(l => !l.claimed).length + bonusDue;
+    const claimable = letters.filter(l => !l.claimed && E.letterProgress(l) >= l.target).length + bonusDue;
     const lb = $("homeBadge");
     setText(lb, left ? String(left) : "");
     lb.classList.toggle("hidden", !left);
     lb.classList.toggle("ready", claimable > 0);
     // The ring fills with the share of this round's letters already claimed
-    const claimed = letters.filter(l => l.claimed).length;
-    lb.style.setProperty("--done", String(letters.length ? Math.round((claimed / letters.length) * 100) : 0));
+    const claimed = today.filter(l => l.claimed).length;
+    lb.style.setProperty("--done", String(today.length ? Math.round((claimed / today.length) * 100) : 0));
+    lb.classList.toggle("full", !!today.length && claimed === today.length);
     $("migrateBadge").classList.toggle("hidden", !migrateIsGood());
     const news = hasNews();
     $("newsBadge").classList.toggle("hidden", !news);
@@ -1330,7 +1361,16 @@
     const h = Math.floor(secs / 3600), mi = Math.floor((secs % 3600) / 60);
     const left = `${h}h ${String(mi).padStart(2, "0")}m`;
     setText($("letterReset"), `New letters in ${left}`);
-    setText($("resetIn"), `Letters reset in ${left}`);
+    const top = $("resetIn");
+    setText(top, `Letters reset in ${left}`);
+    // The top-bar countdown is a shortcut to the Mailbox
+    if (!top.dataset.bound) {
+      top.dataset.bound = "1";
+      top.setAttribute("role", "button");
+      top.setAttribute("tabindex", "0");
+      top.addEventListener("click", () => selectTab("home", true));
+      top.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectTab("home", true); } });
+    }
   }
   function renderNextGoal() {
     const g = E.nextGoal(), el = $("nextGoal");

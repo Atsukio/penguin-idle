@@ -954,6 +954,10 @@ test("memories: hide collected, the close count, a Mailbox countdown, and the ne
   // The same countdown is in the top bar, and the Home badge ring tracks the claimed share
   await expect(page.locator("#resetIn")).toHaveText(/Letters reset in \d+h \d{2}m/);
   await expect(page.locator("#homeBadge")).toHaveAttribute("style", /--done/);
+  // Tapping the top-bar countdown opens the Mailbox
+  await page.locator('[data-tab="achievements"]').click();
+  await page.locator("#resetIn").click();
+  await expect(page.locator("#tab-home")).toBeVisible();
   // Hide collected: a collected memory disappears from the grid
   await page.evaluate(() => { const g = window.penguinIdle; g.state.achievements.push("fish_1"); });
   await page.locator('[data-tab="achievements"]').click();
@@ -967,4 +971,31 @@ test("memories: hide collected, the close count, a Mailbox countdown, and the ne
   await expect(page.locator("#nextGoal")).toHaveClass(/clickable/);
   await page.locator("#nextGoal").click();
   await expect(page.locator("#tab-achievements")).toBeVisible();
+});
+
+test("memories: an 'Almost!' marker at 90%, a season note, and unanswered letters carry over as late", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  // A memory at 90% or more gets a marker on its card, instead of a toast
+  await page.evaluate(() => { window.penguinIdle.state.stats.clicks = 95; });
+  await page.locator('[data-tab="achievements"]').click();
+  await expect(page.locator("#achievements .ach", { hasText: "Almost!" }).first()).toBeVisible();
+  // The season note says when the current or next seasonal event starts or ends
+  await expect(page.locator("#seasonNote")).toHaveText(/(starts|ends) (tomorrow|in \d+ days)\./);
+  // An unanswered letter from yesterday is kept, marked late, and today's bonus still counts only today's letters
+  await page.evaluate(() => {
+    const g = window.penguinIdle, E = g.engine;
+    const yesterday = E.dayKey(new Date(Date.now() - 86400000));
+    g.state.letters.day = yesterday;
+    g.state.letters.list = g.state.letters.list.map(l => ({ ...l, claimed: false }));
+    E.ensureLetters(new Date());
+  });
+  const late = await page.evaluate(() => window.penguinIdle.state.letters.list.filter(l => l.late).length);
+  expect(late).toBe(3);
+  await page.locator('[data-tab="home"]').click();
+  await expect(page.locator("#letters .letter.late")).toHaveCount(3);
+  await expect(page.locator("#letters .late-tag").first()).toBeVisible();
+  // Answering the three late letters does not open the care package, because today's three are still open
+  await page.evaluate(() => { window.penguinIdle.state.letters.list.forEach(l => { if (l.late) l.claimed = true; }); });
+  await expect(page.locator("#letterBonus #bonusBtn")).toHaveCount(0);
 });

@@ -445,6 +445,11 @@ h2 { font-size: 1.1rem; margin: 16px 0 8px; letter-spacing: .01em; }
 .ach:not(.done) { opacity: .8; }
 .a-bar { height: 6px; border-radius: 4px; background: var(--border); margin-top: 5px; overflow: hidden; }
 .a-bar span { display: block; height: 100%; background: var(--gold); border-radius: 4px; }
+.season-note { margin: 0 0 8px; font-size: .9rem; }
+.season-note.hidden { display: none; }
+.a-almost { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 8px; font-size: .72rem; font-weight: 700; background: var(--gold); color: #3a2312; vertical-align: 1px; }
+.late-tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 8px; font-size: .72rem; background: #4a3330; color: #fbefe0; }
+.letter.late { border-top-color: var(--gold); }
 .ach-near { margin: 0 0 12px; }
 .next-goal.clickable { cursor: pointer; text-decoration: underline dotted; }
 /* Home badge: a ring fills with the share of letters claimed; it pulses when one is ready */
@@ -452,8 +457,11 @@ h2 { font-size: 1.1rem; margin: 16px 0 8px; letter-spacing: .01em; }
 #homeBadge.ready { animation: home-pulse 1.6s ease-in-out infinite; box-shadow: 0 0 0 2px var(--gold); }
 @keyframes home-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.18); } }
 html.reduce-motion #homeBadge.ready { animation: none; }
+#homeBadge.full { box-shadow: 0 0 10px 2px rgba(255, 215, 120, .65); }
 .reset-in { font-size: .8rem; color: var(--muted); align-self: center; font-variant-numeric: tabular-nums; }
 .reset-in:empty { display: none; }
+.reset-in { cursor: pointer; border-radius: 6px; padding: 0 .2em; }
+.reset-in:hover, .reset-in:focus-visible { color: var(--text); text-decoration: underline; }
 .letter-reset { font-size: .85rem; margin: -4px 0 8px; }
 .ach-near.hidden { display: none; }
 .ach-near h3 { font-size: .95rem; margin: 0 0 6px; }
@@ -886,7 +894,9 @@ html.power-saver .colony .nap-stars span { animation: none; }
 .letter .muted { color: #7a625a; }
 .letter.ready { animation: wiggle-letter 2.4s ease-in-out infinite; }
 @keyframes wiggle-letter { 0%, 85%, 100% { rotate: 0deg; } 90% { rotate: -1.5deg; } 95% { rotate: 1.5deg; } }
-.letter.claimed { opacity: .65; }
+.letter.claimed { opacity: .65; padding-bottom: 8px; }
+.letter.claimed .l-bar { display: none; }
+.letter.claimed .l-text { min-height: 0; margin: 4px 0 6px; }
 .letter-bonus { margin-top: 10px; }
 
 /* ---------- Wardrobe ---------- */
