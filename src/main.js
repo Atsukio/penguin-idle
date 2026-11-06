@@ -77,7 +77,9 @@
     bind("optBatterySaver", "batterySaver", el => el.value);
     bind("optAutoNap", "autoNap", el => Number(el.value));
     $("napBtn").addEventListener("click", () => startNap());
-    $("napScreen").addEventListener("click", wake);
+    $("napWake").addEventListener("click", wake);
+    // A stray tap on the dark screen keeps focus on the button, so Enter still wakes
+    $("napScreen").addEventListener("click", e => { if (e.target !== $("napWake")) $("napWake").focus({ preventScroll: true, focusVisible: false }); });
   }
 
   // ---------- Save controls ----------
@@ -318,12 +320,12 @@
   let lastInput = Date.now();
   ["pointerdown", "pointermove", "keydown", "wheel", "touchstart"].forEach(ev =>
     document.addEventListener(ev, () => { lastInput = Date.now(); }, { passive: true, capture: true }));
-  // Any key wakes the colony (and does nothing else)
+  // While napping, keys do nothing except press the Wake up button (Enter/Space with it focused)
   document.addEventListener("keydown", e => {
     if (!PI.napping) return;
+    if (e.target === $("napWake") && (e.key === "Enter" || e.key === " ")) return;
     e.preventDefault();
     e.stopImmediatePropagation();
-    wake();
   }, true);
 
   // The big penguin, in its current outfit, fast asleep (ids renamed so the copy's gradients don't clash)

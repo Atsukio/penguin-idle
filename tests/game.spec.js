@@ -655,7 +655,7 @@ test("residents come with cute default names, and the dice picks another", async
   await expect(page.locator("#waddlers .w-tag").first()).toHaveText(d[0]);
 });
 
-test("napping shows a dark, low-power screen that keeps fishing, and any key wakes it", async ({ page }) => {
+test("napping shows a dark, low-power screen that keeps fishing, and only the button wakes it", async ({ page }) => {
   await page.goto("/");
   await closeModals(page);
   await page.evaluate(() => { const g = window.penguinIdle; g.state.buildings.fisher = 50; g.state.fish = 1e9; g.engine.recompute(); g.engine.bus.emit("structure"); });
@@ -673,17 +673,20 @@ test("napping shows a dark, low-power screen that keeps fishing, and any key wak
   expect(await state(page, () => window.penguinIdle.state.fish)).toBeGreaterThan(before);
   await expect(page.locator("#napFish")).toHaveText(await state(page, () => window.penguinIdle.fmt(Math.floor(window.penguinIdle.state.fish))));
   expect(await state(page, () => window.penguinIdle.state.stats.napSeconds)).toBeGreaterThan(1);
-  // Any key wakes it, and only wakes it: B doesn't also buy upgrades
+  // Stray keys and taps don't wake it (and B doesn't buy upgrades); only the button does
   const ups = await state(page, () => window.penguinIdle.state.upgrades.length);
   await page.keyboard.press("b");
+  await page.locator("#napScreen").click({ position: { x: 10, y: 10 } });
+  await expect(page.locator("#napScreen")).toBeVisible();
+  await page.keyboard.press("Enter");   // the Wake up button has focus
   await expect(page.locator("#napScreen")).toBeHidden();
   await expect(page.locator("#layout")).toBeVisible();
   expect(await state(page, () => window.penguinIdle.state.upgrades.length)).toBe(ups);
   expect(await state(page, () => window.penguinIdle.loopMs)).toBe(50);
-  // Z naps, a tap wakes
+  // Z naps, the button wakes
   await page.keyboard.press("z");
   await expect(page.locator("#napScreen")).toBeVisible();
-  await page.locator("#napScreen").click({ position: { x: 10, y: 10 } });
+  await page.locator("#napWake").click();
   await expect(page.locator("#napScreen")).toBeHidden();
 });
 
