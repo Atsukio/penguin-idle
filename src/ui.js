@@ -454,9 +454,16 @@
       return `<button class="shore${here ? " here" : ""}${next ? " next" : ""}${open ? "" : " locked"}" data-id="${sh.id}"${open ? "" : " disabled"}
         aria-pressed="${next}" aria-label="${sh.name}: ${sh.desc}${here ? " You live here now." : ""}${next ? " Your next stop." : ""}${open ? "" : ` Unlocks after ${sh.unlockAt - 1} migrations.`}">
         <div class="sh-icon" aria-hidden="true">${open ? sh.icon : "🔒"}</div>
-        <div><div class="name">${sh.name} ${here ? '<span class="tag">You are here</span>' : ""}${next ? '<span class="tag next">Next stop</span>' : ""}</div>
-        <div class="desc">${open ? sh.desc : `Unlocks after ${sh.unlockAt - 1} migration${sh.unlockAt - 1 === 1 ? "" : "s"}`}${visited && !here ? " · visited" : ""}</div></div></button>`;
+        <div><div class="name">${sh.name}</div>
+        <div class="desc">${open ? sh.desc : `Unlocks after ${sh.unlockAt - 1} migration${sh.unlockAt - 1 === 1 ? "" : "s"}`}</div>
+        ${here || next || (visited && !here) ? `<div class="sh-tags">${here ? '<span class="tag">You\'re here</span>' : ""}${next ? '<span class="tag next">👣 Next stop</span>' : ""}${visited && !here ? '<span class="tag visited">Visited</span>' : ""}</div>` : ""}</div></button>`;
     }).join("");
+    // Progress toward the two shore memories, shown above the list
+    setText($("shoreMemories"), ["shores_3", "shores_all"].map(id => D.ACHIEVEMENTS.find(a => a.id === id)).map(a => {
+      if (S().achievements.includes(a.id)) return `${a.icon} ${a.name} ✓`;
+      const p = E.memoryProgress(a);
+      return `${a.icon} ${a.name} ${p.cur}/${p.goal}`;
+    }).join(" · "));
     if (setHTML($("shores"), html)) {
       $("shores").querySelectorAll(".shore:not(.locked)").forEach(el => el.addEventListener("click", () => E.setNextShore(el.dataset.id)));
     }
@@ -653,6 +660,7 @@
     const card = (a, extra = "") => {
       const done = S().achievements.includes(a.id);
       let prog = "", almost = "";
+      const when = done && S().achDates[a.id] ? `<div class="a-date">Collected<b>${new Date(S().achDates[a.id]).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</b></div>` : "";
       const p = !done && E.memoryProgress(a);
       if (p) {
         const pct = Math.floor(p.frac * 100);
@@ -664,14 +672,20 @@
       } else if (!done && a.hint) prog = `<div class="a-hint">💡 ${a.hint}</div>`;
       return `<div class="ach ${done ? "done" : ""} ${extra}">
         <div class="a-icon" aria-hidden="true">${a.icon}${a.badge ? `<span class="a-badge">${a.badge}</span>` : ""}</div>
-        <div><div class="name">${a.name}${done ? "" : ' <span class="visually-hidden">(locked)</span>'}${almost}</div><div class="desc">${a.desc}</div>${prog}</div></div>`;
+        <div><div class="name">${a.name}${done ? "" : ' <span class="visually-hidden">(locked)</span>'}${almost}</div><div class="desc">${a.desc}</div>${prog}</div>${when}</div>`;
     };
     // Memories that are more than halfway done float to a "Nearly there" row
     const near = E.nearestMemories(3, 0.5);
     $("achNear").classList.toggle("hidden", !near.length);
     setHTML($("achNear"), near.length ? `<h3>Nearly there</h3><div class="ach-grid">${near.map(m => card(m.a, "near")).join("")}</div>` : "");
+    // Order: locked memories closest to done first (ones with no progress bar last), then collected ones, newest first
+    const frac = a => { const p = E.memoryProgress(a); return p ? p.frac : -1; };
+    const dateOf = a => S().achDates[a.id] || 0;
     const hideDone = !!S().settings.hideDone;
-    setHTML($("achievements"), D.ACHIEVEMENTS.filter(a => !hideDone || !S().achievements.includes(a.id)).map(a => card(a)).join(""));
+    const all = D.ACHIEVEMENTS.filter(a => !hideDone || !S().achievements.includes(a.id));
+    const locked = all.filter(a => !S().achievements.includes(a.id)).sort((x, y) => frac(y) - frac(x));
+    const collected = all.filter(a => S().achievements.includes(a.id)).sort((x, y) => dateOf(y) - dateOf(x));
+    setHTML($("achievements"), [...locked, ...collected].map(a => card(a)).join(""));
   }
 
   function renderStatsGraph() {

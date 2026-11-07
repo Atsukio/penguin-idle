@@ -56,6 +56,7 @@
       fish: 0, runFish: 0, lifetimeFish: 0,
       buildings: Object.fromEntries(BUILDINGS.map(b => [b.id, 0])),
       upgrades: [], achievements: [],
+      achDates: {},        // memory id -> when it was collected (ms); memories from older saves have no date
       feathersEarned: 0, feathersSpent: 0,
       heritage: {},        // heirloom id -> level
       research: {},        // workshop id -> level (reset on migration)
@@ -594,7 +595,7 @@
   function checkAchievements() {
     const fresh = ACHIEVEMENTS.filter(a => !S.achievements.includes(a.id) && a.check(S, E));
     if (!fresh.length) return [];
-    fresh.forEach(a => S.achievements.push(a.id));
+    fresh.forEach(a => { S.achievements.push(a.id); S.achDates[a.id] = now(); });
     recompute();
     bus.emit("structure");
     bus.emit("achievements", fresh);
@@ -806,6 +807,9 @@
     // Derived from what's owned, not trusted from the file
     s.feathersSpent = treeSpentOn(s.heritage) + helpersSpentOn(s.helpers);
     s.achievements = idList(data.achievements, Object.fromEntries(ACHIEVEMENTS.map(a => [a.id, true])));
+    const achDates = obj(data.achDates);
+    // Memories collected before dates were kept are dated to the day they're first loaded
+    s.achievements.forEach(id => { const t = num(achDates[id]); s.achDates[id] = t > 0 ? t : now(); });
     s.shoresVisited = idList(data.shoresVisited, SHORE_BY_ID);
     if (!s.shoresVisited.includes("home")) s.shoresVisited.unshift("home");
     s.shore = SHORE_BY_ID[data.shore] ? data.shore : "home";

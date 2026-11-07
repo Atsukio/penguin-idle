@@ -470,6 +470,15 @@ html.reduce-motion #homeBadge.ready { animation: none; }
 .a-prog.hot .a-bar span { animation: a-glow 1.4s ease-in-out infinite; }
 @keyframes a-glow { 0%, 100% { filter: brightness(1); box-shadow: 0 0 0 rgba(242, 193, 78, 0); } 50% { filter: brightness(1.25); box-shadow: 0 0 8px rgba(242, 193, 78, .9); } }
 .a-num { font-size: .72rem; color: var(--muted); margin-top: 2px; font-variant-numeric: tabular-nums; }
+/* "Collected" stamp on a finished memory, like a date written on a scrapbook page */
+.a-date {
+  display: inline-block; margin-top: 6px; padding: 3px 9px 4px 7px; line-height: 1.35;
+  border-radius: 10px; border: 1px dashed var(--gold); background: rgba(242, 193, 78, .12);
+  font-size: .72rem; color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.ach > .a-date { display: block; grid-column: 1 / -1; margin-top: 0; box-sizing: border-box; width: 100%; }
+.a-date::before { content: "✓ "; font-weight: 800; color: var(--gold); }
+.a-date b { display: block; color: inherit; font-weight: 700; }
 
 /* ---------- Settings / stats ---------- */
 .settings { display: grid; gap: 8px; }
@@ -854,6 +863,9 @@ html.power-saver .colony .nap-stars span { animation: none; }
 .shore.locked { opacity: .5; cursor: default; }
 .tag { font-size: .66rem; font-weight: 800; border-radius: 8px; padding: 1px 6px; margin-left: 4px; background: var(--gold); color: #2a1810; vertical-align: middle; }
 .tag.next { background: var(--good); }
+.tag.visited { background: var(--panel); color: var(--muted); border: 1px solid var(--border); }
+.shore .sh-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.shore .sh-tags .tag { margin-left: 0; }
 .shore-pick { border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px; margin: 8px 0 0; }
 .shore-pick legend { font-weight: 800; padding: 0 4px; }
 .shore-radio { display: block; padding: 6px 4px; border-radius: 8px; cursor: pointer; }
