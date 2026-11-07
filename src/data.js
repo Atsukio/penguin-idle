@@ -39,8 +39,23 @@
   // installed copies always pick up the update.
   const BEDTIMES = ["off", "21-7", "22-7", "23-7", "0-8"];   // bedtime nap windows, local hours
   const NAP_STARS = 24;   // one sky star per napped hour, up to this many
-  const NAP_BONUS = 0.05;   // napping fishes this much faster before Lullabies
+  const NAP_BONUS = 0.25;   // napping fishes this much faster before Lullabies (125% pace)
   const CHANGELOG = [
+    { version: "4.4", date: "2026-11-07", title: "Memories in order", notes: [
+      "## Memories",
+      "Memories are sorted by how close you are: nearly finished ones first, then the ones you've collected, newest first.",
+      "Each collected memory shows the date you got it. Memories collected before this update are dated to the day you first open the game after it.",
+      "A memory at 90% gets an 'Almost!' marker, and the ones over halfway gather in a 'Nearly there' row.",
+      "Memories you collect show a 'New' marker and a count on the Memories tab until you visit it again.",
+      "Two new memories for coming home: Homecoming for a day or more away and back before the first week is up, and Long Journey for a week or more away.",
+      "## Shores",
+      "Shore cards show 'You're here', '👣 Next stop' and 'Visited' tags along the bottom. A line above the list shows your progress toward Explorer and Globetrotter.",
+      "## Mailbox",
+      "Letters you didn't answer carry over to the next day, marked late. The reset countdown is in the top bar, and tapping it opens the Mailbox.",
+      "## Napping and time away",
+      "Napping fishes 25% faster, up from 5%.",
+      "Time away fishes at 50% pace for an absence under a week, then 25% after that. The length is the whole time since your last visit. Quiet Hollow doubles both, and upgrades add to them. The Welcome home card explains which pace applied.",
+    ] },
     { version: "4.3", date: "2026-11-06", title: "Sweet dreams", notes: [
       "## Napping",
       "Napping fishes 5% faster, and the new Lullabies project in the Workshop makes it faster still.",
@@ -438,17 +453,17 @@
 
     // Wanderer: golden fish and time away
     { id: "offline1", icon: "💭", name: "Sweet Dreams", branch: "wanderer", x: 5, y: 1, max: 1, cost: 10, growth: 1, requires: ["spirit"],
-      text: () => "While you're away, the colony fishes at 50% pace instead of 25%.", apply: m => { m.offlineEff += 0.25; } },
+      text: () => "While you're away, the colony fishes 25% faster.", apply: m => { m.offlineEff += 0.25; } },
     { id: "golden", icon: "🔆", name: "Golden Instinct", branch: "wanderer", x: 4, y: 2, max: 3, cost: 75, growth: 3, requires: ["offline1"],
       text: L => `Golden fish appear ${1 + 0.5 * lvl(L)}× as often.`, apply: (m, L) => { m.goldenFreq *= 1 + 0.5 * L; } },
     { id: "offline2", icon: "🐻", name: "Deep Hibernation", branch: "wanderer", x: 5, y: 2, max: 1, cost: 250, growth: 1, requires: ["offline1"],
-      text: () => "While you're away, fish at 100% pace for up to 72 hours.", apply: m => { m.offlineEff += 0.5; m.offlineCapH += 48; } },
+      text: () => "While you're away, the colony fishes 50% faster, for up to 72 hours.", apply: m => { m.offlineEff += 0.5; m.offlineCapH += 48; } },
     { id: "frenzy", icon: "🥤", name: "Bottomless Cocoa", branch: "wanderer", x: 6, y: 2, max: 1, cost: 500, growth: 1, requires: ["offline1"],
       text: () => "Golden fish effects last twice as long.", apply: m => { m.goldenDur *= 2; } },
     { id: "treasure", icon: "🗝️", name: "Treasure Keys", branch: "wanderer", x: 4, y: 3, max: 5, cost: 1500, growth: 2.5, requires: ["golden"],
       text: L => `Lucky Catches +${25 * lvl(L)}%.`, apply: (m, L) => { m.luckyMult *= 1 + 0.25 * L; } },
     { id: "dreams", icon: "🌜", name: "Dream Fishing", branch: "wanderer", x: 5, y: 3, max: 2, cost: 20000, growth: 4, requires: ["offline2"],
-      text: L => `While you're away, fish at ${100 + 25 * lvl(L)}% pace.`, apply: (m, L) => { m.offlineEff += 0.25 * L; } },
+      text: L => `While you're away, the colony fishes ${25 * lvl(L)}% faster.`, apply: (m, L) => { m.offlineEff += 0.25 * L; } },
     { id: "rush", icon: "⏩", name: "Rush Hour", branch: "wanderer", x: 6, y: 3, max: 4, cost: 5000, growth: 3, requires: ["frenzy"],
       text: L => `Cocoa Rush gives ×${7 + lvl(L)} instead of ×7.`, apply: (m, L) => { m.rushMult += L; } },
     { id: "finder", icon: "🔍", name: "Feather Finder", branch: "wanderer", x: 5, y: 4, max: 5, cost: 100000, growth: 3, requiresAny: ["treasure", "dreams", "rush"],
@@ -480,6 +495,8 @@
   [[1, "The Long Walk", "👣"], [5, "Seasoned Traveller", "🧳"], [25, "Eternal March", "🗻"]].forEach(([n, name, icon]) =>
     ach(`mig_${n}`, name, `Migrate ${n} time${n > 1 ? "s" : ""}.`, s => s.migrations >= n, icon, "", s => [s.migrations, n]));
   ach("idle", "Penguin Nap", "Come back after more than an hour away.", s => s.stats.longestAway >= 3600, "😴", "", s => [s.stats.longestAway, 3600, "time"]);
+  ach("homecoming", "Homecoming", "Come back after a day or more away, before the first week is up.", s => s.stats.homecomings >= 1, "🏡");
+  ach("long_away", "Long Journey", "Come back after a week or more away.", s => s.stats.longestAway >= 7 * 86400, "🗺️", "",s => [s.stats.longestAway, 7 * 86400, "time"]);
   ach("allb", "The Whole Family", "Own at least one of every colony member.", s => BUILDINGS.every(b => s.buildings[b.id] > 0), "👪", "", s => [BUILDINGS.filter(b => s.buildings[b.id] > 0).length, BUILDINGS.length]);
   ach("res_1", "Tinkerer", "Research something in the Workshop.", s => Object.keys(s.research).length > 0, "🔧");
   // Progress is the most-levelled Workshop project, measured against its own maximum

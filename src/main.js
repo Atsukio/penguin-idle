@@ -507,7 +507,10 @@
       body: `<p>You were away for <b>${PI.fmtTime(offline.away)}</b>. The colony kept the fire going and fished at ${Math.round(offline.eff * 100)}% pace,
              catching <b>🐟 ${fmt(offline.earned)}</b>.</p>
              ${awayNews(offline)}
-             ${offline.away > offline.cap ? `<p class="muted">Time away counts for up to ${offline.cap / 3600} hours.</p>` : ""}`,
+             ${offline.away > offline.cap ? `<p class="muted">Time away counts for up to ${offline.cap / 3600} hours.</p>` : ""}
+             <p class="muted">${offline.firstWeek
+               ? "Away for under a week fishes at 50% pace before upgrades. Away a week or more drops it to 25%. Coming back resets it."
+               : "Away a week or more, so the pace was 25% before upgrades. Coming back resets it to 50%."}</p>`,
       actions: [{ label: "Cozy!", primary: true, cancel: true,
         onClick: () => setTimeout(() => PI.penguin.say(["Welcome back! We missed you!", "You're home! We saved you some fish.", "There you are! The fire's still warm."][Math.floor(Math.random() * 3)], true), 300) }],
     });

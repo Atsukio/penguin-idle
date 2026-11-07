@@ -4,7 +4,7 @@
  * CACHE always matches the newest What's new entry (CHANGELOG in src/data.js); tools/check-data.js
  * checks this in CI, so every release reaches installed copies.
  */
-const CACHE = "penguin-idle-v4.3";
+const CACHE = "penguin-idle-v4.4";
 const FILES = [
   "./", "index.html", "style.css", "manifest.webmanifest",
   "src/data.js", "src/engine.js", "src/qr.js", "src/fx.js", "src/penguin.js", "src/ui.js", "src/main.js",

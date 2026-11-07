@@ -569,8 +569,54 @@ test("waking the computer from sleep gives offline rewards", async ({ page }) =>
   });
   await expect(page.locator(".modal h2")).toHaveText("Welcome home!");
   const fish = await state(page, () => window.penguinIdle.state.fish);
-  expect(fish).toBeGreaterThan(before * 3 * 3600 * 0.25 * 0.95);   // 25% pace for the time away
+  expect(fish).toBeGreaterThan(before * 3 * 3600 * 0.5 * 0.95);   // 50% pace for an absence under a week
+  await expect(page.locator(".modal")).toContainText("drops it to 25%");   // the welcome card says what happens if you stay away longer
   expect(await state(page, () => window.penguinIdle.state.stats.longestAway)).toBeGreaterThan(3 * 3600 - 5);
+});
+
+test("time away: 50% pace for an absence under a week, 25% after that", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  // Pace = fish earned / (fish per second × a full day); the 24-hour cap is the same for both lengths
+  const pace = days => page.evaluate(d => {
+    const g = window.penguinIdle;
+    g.state.buildings.chick = 10; g.engine.recompute(); g.state.fish = 0;
+    const fps = g.engine.fishPerSecond(false);
+    g.state.lastTick = Date.now() - d * 86400e3;
+    g.engine.applyOffline();
+    return g.state.fish / (fps * 86400);
+  }, days);
+  expect(await pace(3)).toBeCloseTo(0.5, 2);
+  expect(await pace(8)).toBeCloseTo(0.25, 2);
+});
+
+test("Homecoming: a day or more away and back before the first week is up", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  // Eight days away is past the first week, so it doesn't count
+  await page.evaluate(() => { const g = window.penguinIdle; g.state.lastTick = Date.now() - 8 * 86400e3; g.engine.applyOffline(); g.engine.checkAchievements(); });
+  expect(await state(page, () => window.penguinIdle.state.achievements.includes("homecoming"))).toBe(false);
+  // Two days away does
+  await page.evaluate(() => { const g = window.penguinIdle; g.state.lastTick = Date.now() - 2 * 86400e3; g.engine.applyOffline(); g.engine.checkAchievements(); });
+  expect(await state(page, () => window.penguinIdle.state.achievements.includes("homecoming"))).toBe(true);
+  expect(await state(page, () => window.penguinIdle.state.stats.homecomings)).toBe(1);
+  // New markers: the Memories tab shows a New pill until the player leaves it again
+  await expect(page.locator("#achNew")).toBeVisible();
+  await page.locator('[data-tab="achievements"]').click();
+  await expect(page.locator("#achievements .ach", { hasText: "Homecoming" }).locator(".a-almost")).toHaveText("New");
+  await expect(page.locator("#achNew")).toBeHidden();
+  await page.locator('[data-tab="colony"]').click();
+  await expect(page.locator("#achNew")).toBeHidden();
+  expect(await state(page, () => window.penguinIdle.state.achNew.includes("homecoming"))).toBe(false);
+});
+
+test("Long Journey: come back after a week or more away", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  await page.evaluate(() => { const g = window.penguinIdle; g.state.lastTick = Date.now() - 3 * 86400e3; g.engine.applyOffline(); g.engine.checkAchievements(); });
+  expect(await state(page, () => window.penguinIdle.state.achievements.includes("long_away"))).toBe(false);
+  await page.evaluate(() => { const g = window.penguinIdle; g.state.lastTick = Date.now() - 8 * 86400e3; g.engine.applyOffline(); g.engine.checkAchievements(); });
+  expect(await state(page, () => window.penguinIdle.state.achievements.includes("long_away"))).toBe(true);
 });
 
 test("a throttled background tab still earns at full rate", async ({ page }) => {
@@ -745,12 +791,12 @@ test("napping fishes faster, shows its bonuses, and a golden fish waits for a lo
   await page.keyboard.press("z");
   await expect(page.locator("#napScreen")).toBeVisible();
   const napping = await state(page, () => window.penguinIdle.engine.fishPerSecond());
-  expect(napping / awake).toBeCloseTo(7 * 1.05, 5);
-  await expect(page.locator("#napBuffs")).toContainText("Nap bonus +5%");
+  expect(napping / awake).toBeCloseTo(7 * 1.25, 5);
+  await expect(page.locator("#napBuffs")).toContainText("Nap bonus +25%");
   await expect(page.locator("#napBuffs")).toContainText("Frenzy ×7 · 10m");
   // Lullabies raise the bonus
   await page.evaluate(() => { const g = window.penguinIdle; g.state.research.lullaby = 2; g.engine.recompute(); });
-  await expect(page.locator("#napBuffs")).toContainText("Nap bonus +15%");
+  await expect(page.locator("#napBuffs")).toContainText("Nap bonus +35%");
   // A short nap: no golden fish. A long one: one is waiting
   await page.locator("#napWake").click();
   await expect(page.locator("#goldenLayer .golden-fish")).toHaveCount(0);
@@ -792,7 +838,7 @@ test("learning every Lullaby earns Sweet Dreams", async ({ page }) => {
     g.state.research.lullaby = 8; g.engine.recompute(); g.engine.checkAchievements();
     return [g.state.achievements.includes("lullaby_max"), g.engine.M.napMult]; });
   expect(got[0]).toBe(true);
-  expect(got[1]).toBeCloseTo(1.45, 5);
+  expect(got[1]).toBeCloseTo(1.65, 5);
 });
 
 test("bedtime naps follow the clock, Lumi keeps golden fish, and naps leave stars", async ({ page }) => {
@@ -917,11 +963,11 @@ test("a nap streak forgives one missed day a week, shows on the nap screen, and 
   await page.waitForTimeout(2000);
   expect(await page.evaluate(() => getComputedStyle(document.querySelector("#napSvg .p-mask")).transform)).not.toBe("none");
   await page.locator("#napWake").click();
-  // What's new groups 4.3 under headings
+  // What's new groups each release under headings (4.4 is newest, then 4.3)
   await page.keyboard.press("6");
   await page.locator("#whatsNewBtn").click();
-  await expect(page.locator(".news").first().locator(".news-head")).toHaveText(["Napping", "Bedtime", "Rewards"]);
-  await expect(page.locator(".news").nth(1).locator(".news-head")).toHaveCount(0);
+  await expect(page.locator(".news").first().locator(".news-head")).toHaveText(["Memories", "Shores", "Mailbox", "Napping and time away"]);
+  await expect(page.locator(".news").nth(1).locator(".news-head")).toHaveText(["Napping", "Bedtime", "Rewards"]);
 });
 
 test("locked memories show progress, a Nearly there row, hints, and the next-goal mention", async ({ page }) => {
@@ -998,4 +1044,37 @@ test("memories: an 'Almost!' marker at 90%, a season note, and unanswered letter
   // Answering the three late letters does not open the care package, because today's three are still open
   await page.evaluate(() => { window.penguinIdle.state.letters.list.forEach(l => { if (l.late) l.claimed = true; }); });
   await expect(page.locator("#letterBonus #bonusBtn")).toHaveCount(0);
+});
+
+test("memories: sorted closest-to-done first, then collected newest first, each collected one dated", async ({ page }) => {
+  await page.goto("/");
+  await closeModals(page);
+  await page.evaluate(() => {
+    const g = window.penguinIdle, D = g.data, day = 86400000, now = Date.now();
+    const other = D.ACHIEVEMENTS.find(a => a.id !== "fish_1" && !a.prog).id;
+    g.state.shoresVisited = ["home", D.SHORES[1].id];   // 2 of 3 toward Explorer, so it has a progress bar
+    g.state.achievements = ["fish_1", other];
+    g.state.achDates = { fish_1: now - 3 * day, [other]: now - day };
+    g.engine.bus.emit("structure");
+  });
+  await page.locator('[data-tab="achievements"]').click();
+  const cards = await page.locator("#achievements .ach").evaluateAll(els => els.map(el => ({
+    done: el.classList.contains("done"),
+    pct: el.querySelector(".a-prog") ? Number(el.querySelector(".a-prog").getAttribute("aria-valuenow")) : null,
+    date: el.querySelector(".a-date b") ? Date.parse(el.querySelector(".a-date b").textContent) : null,
+  })));
+  const locked = cards.filter(c => !c.done), done = cards.filter(c => c.done);
+  // Every locked memory comes before every collected one
+  expect(cards.map(c => c.done)).toEqual([...locked.map(() => false), ...done.map(() => true)]);
+  // Locked with a progress bar come first, closest to done first; the ones with no bar come after
+  const withBar = locked.filter(c => c.pct !== null).map(c => c.pct);
+  expect(withBar.length).toBeGreaterThan(1);
+  expect(withBar).toEqual([...withBar].sort((a, b) => b - a));
+  expect(locked.slice(withBar.length).every(c => c.pct === null)).toBe(true);
+  // Collected: newest first, each one dated
+  expect(done).toHaveLength(2);
+  expect(done.every(c => c.date)).toBe(true);
+  expect(done[0].date).toBeGreaterThan(done[1].date);
+  // Explorer (2 of 3 shores) is the closest locked memory, so it leads the list
+  await expect(page.locator("#achievements .ach").first()).toContainText("Explorer");
 });

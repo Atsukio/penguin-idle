@@ -670,6 +670,8 @@
         prog = `<div class="a-prog ${pct >= 90 ? "hot" : ""}" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-label="Progress">
           <div class="a-bar"><span style="width:${pct}%"></span></div><div class="a-num">${show(p.cur)} / ${show(p.goal)}</div></div>`;
       } else if (!done && a.hint) prog = `<div class="a-hint">💡 ${a.hint}</div>`;
+      // Collected since the player last left this tab
+      if (done && S().achNew.includes(a.id)) almost += ' <span class="a-almost">New</span>';
       return `<div class="ach ${done ? "done" : ""} ${extra}">
         <div class="a-icon" aria-hidden="true">${a.icon}${a.badge ? `<span class="a-badge">${a.badge}</span>` : ""}</div>
         <div><div class="name">${a.name}${done ? "" : ' <span class="visually-hidden">(locked)</span>'}${almost}</div><div class="desc">${a.desc}</div>${prog}</div>${when}</div>`;
@@ -1313,6 +1315,7 @@
   // Tabs, badges and the fish counter
   // =====================================================================
   function selectTab(name, focus = false) {
+    if (currentTab === "achievements" && name !== "achievements") E.clearNewMemories();
     currentTab = name;
     document.querySelectorAll(".tab").forEach(t => {
       const on = t.dataset.tab === name;
@@ -1338,6 +1341,10 @@
 
   function updateBadges() {
     setText($("achCount"), `${S().achievements.length}/${D.ACHIEVEMENTS.length}`);
+    // Memories collected since the Memories tab was last left (hidden while you're on that tab)
+    const nNew = S().achNew.length;
+    setText($("achNew"), `${nNew} new`);
+    $("achNew").classList.toggle("hidden", !nNew || currentTab === "achievements");
     // Home: how many mailbox items are still left (unclaimed letters, plus the bonus once they're all done).
     // Gold when something is ready to claim.
     const letters = S().letters.list;

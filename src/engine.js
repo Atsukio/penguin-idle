@@ -44,7 +44,7 @@
 
   function freshStats() {
     return {
-      clicks: 0, clickFish: 0, goldenClicks: 0, bigCatches: 0, longestAway: 0,
+      clicks: 0, clickFish: 0, goldenClicks: 0, bigCatches: 0, longestAway: 0, homecomings: 0,
       buildingsBought: 0, upgradesBought: 0, researchBought: 0, lettersClaimed: 0, outfitChanges: 0, seasonalCatches: 0,
       deliveries: 0, musicSeconds: 0, propLooks: 0, rubPats: 0, napSeconds: 0, napBonusFish: 0,
       startedAt: now(), runStartedAt: now(),
@@ -57,6 +57,7 @@
       buildings: Object.fromEntries(BUILDINGS.map(b => [b.id, 0])),
       upgrades: [], achievements: [],
       achDates: {},        // memory id -> when it was collected (ms); memories from older saves have no date
+      achNew: [],          // memories collected since the Memories tab was last left (they show as New)
       feathersEarned: 0, feathersSpent: 0,
       heritage: {},        // heirloom id -> level
       research: {},        // workshop id -> level (reset on migration)
@@ -592,10 +593,12 @@
       .map(a => ({ a, ...memoryProgress(a) })).filter(m => m.frac >= minFrac && m.frac < 1)
       .sort((x, y) => y.frac - x.frac).slice(0, limit);
   }
+  // Called when the player leaves the Memories tab: the New markers go away
+  function clearNewMemories() { S.achNew = []; }
   function checkAchievements() {
     const fresh = ACHIEVEMENTS.filter(a => !S.achievements.includes(a.id) && a.check(S, E));
     if (!fresh.length) return [];
-    fresh.forEach(a => { S.achievements.push(a.id); S.achDates[a.id] = now(); });
+    fresh.forEach(a => { S.achievements.push(a.id); S.achDates[a.id] = now(); S.achNew.push(a.id); });
     recompute();
     bus.emit("structure");
     bus.emit("achievements", fresh);
@@ -693,12 +696,16 @@
     if (away < 60) return null;
     S.stats.longestAway = Math.max(S.stats.longestAway, away);
     const cap = M.offlineCapH * 3600;
-    const eff = M.offlineEff * M.offlineMult;
+    // Pace is set by the whole absence since the last visit: 50% for the first week away, 25% after that.
+    // Upgrades add to the base pace and Quiet Hollow doubles the total.
+    const firstWeek = away < 7 * 86400;
+    if (firstWeek && away >= 86400) S.stats.homecomings += 1;   // a day or more away, back before the first week is up
+    const eff = (M.offlineEff + (firstWeek ? 0.25 : 0)) * M.offlineMult;
     const earned = fishPerSecond(false) * Math.min(away, cap) * eff;
     S.lastTick = now();
     if (earned <= 0) return null;
     gain(earned);
-    return { away, earned, eff, cap };
+    return { away, earned, eff, cap, firstWeek };
   }
 
   // =====================================================================
@@ -810,6 +817,7 @@
     const achDates = obj(data.achDates);
     // Memories collected before dates were kept are dated to the day they're first loaded
     s.achievements.forEach(id => { const t = num(achDates[id]); s.achDates[id] = t > 0 ? t : now(); });
+    s.achNew = idList(data.achNew, Object.fromEntries(s.achievements.map(id => [id, true])));
     s.shoresVisited = idList(data.shoresVisited, SHORE_BY_ID);
     if (!s.shoresVisited.includes("home")) s.shoresVisited.unshift("home");
     s.shore = SHORE_BY_ID[data.shore] ? data.shore : "home";
@@ -931,7 +939,7 @@
     NAME_SLOTS, cleanName, setName, residentNames, playerNames, suggestName, ensureDefaultNames,
     goldenDelay, goldenEffect,
     dayKey, ensureLetters, letterProgress, todaysLetters, letterReward, claimLetter, claimLetterBonus,
-    checkAchievements, runHelpers, tick, applyOffline,
+    checkAchievements, clearNewMemories, runHelpers, tick, applyOffline,
     encodeSave, decodeSave, save, load, SaveError, transferJSON, fromTransferJSON, nextGoal, memoryProgress, nearestMemories, secsToNewDay,
   });
   PI.engine = E;
