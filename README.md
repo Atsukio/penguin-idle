@@ -79,7 +79,10 @@ src/scene.js          colony scenery, weather, day/night cycle, waddlers, chatte
 src/audio.js          synthesized sound effects and live procedural lofi music
 src/fx.js             canvas particles and snow, screen shake, visual feedback
 src/penguin.js        the big penguin's drawing, outfits and personality
-src/ui.js             screens, dialogs, tooltips and the touch info sheet
+src/ui.js             root shell, tab switching, and 60fps frame loop
+src/ui-dialogs.js     modals, toasts, tooltips and the touch info sheet
+src/ui-memories.js    101 memories, statistics, SVG graph and nap stars
+src/ui-panels.js      colony store, upgrades, workshop, migration and wardrobe
 src/ui-activities.js  heirloom tree SVG, campfire cooking, diving & relics
 src/qr.js             a small QR code encoder for moving a colony to another device (no DOM)
 src/main.js           startup, game loop, settings, hotkeys, offline app

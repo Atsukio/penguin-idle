@@ -72,7 +72,10 @@ src/
 │                           lofi electric piano / generative drum soundtrack
 ├── fx.js                   Canvas particle bursts, screen shake, and visual feedback
 ├── penguin.js              Big penguin SVG rendering, outfits, emotions, petting
-├── ui.js                   Tabs, store tables, statistics, modals, tooltips
+├── ui.js                   Root shell, tab navigation, 60fps frame loop & tickers
+├── ui-dialogs.js           Accessible modals, toast notifications, tooltips & touch sheet
+├── ui-memories.js          Memories (101 achievements), stats, SVG graph, nap stars
+├── ui-panels.js            Store panels: buildings, upgrades, workshop, migration, letters
 ├── ui-activities.js        Heirloom SVG skill tree, Campfire Kettle cooking,
 │                           Diving expeditions and relic display
 ├── qr.js                   Self-contained compact QR code generator for saves
