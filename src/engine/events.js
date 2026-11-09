@@ -196,8 +196,9 @@
     };
   }
 
+  const LT_BY_ID = Object.fromEntries(D.LETTER_TYPES.map(t => [t.id, t]));
   const statValue = stat => (stat === "lifetimeFish" ? S().lifetimeFish : S().stats[stat] || 0);
-  const letterProgress = l => Math.min(l.target, Math.max(0, statValue(D.LT_BY_ID[l.type].stat) - l.base));
+  const letterProgress = l => Math.min(l.target, Math.max(0, statValue(LT_BY_ID[l.type].stat) - l.base));
   const letterReward = () => Math.max(100, E().fishPerSecond(false) * 900);
 
   function ensureLetters(date = new Date(now())) {
@@ -256,6 +257,8 @@
     setOutfit,
     addNapTime,
     napStreakNow,
+    NAME_SLOTS,
+    cleanName,
     setName,
     suggestName,
     residentNames,

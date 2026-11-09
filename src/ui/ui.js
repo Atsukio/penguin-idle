@@ -197,7 +197,7 @@
       iceHoleEl.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleHole(e); } });
     }
 
-    shownFish = S().fish;
+    setShownFish(S().fish);
     if (S_SC.rebuildScene) S_SC.rebuildScene(true);
     refreshStructure();
     renderTab(true);
@@ -228,7 +228,8 @@
     setBuyAmount,
     pointFrom,
     isTouch,
-    setShownFish: v => { shownFish = v; },
+    setShownFish,
+    get shownFish() { return getShownFish(); },
     renderTab,
     refreshStructure,
     updateBadges,
