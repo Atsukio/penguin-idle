@@ -940,213 +940,10 @@
 
   const relicLevel = id => (S.relics && S.relics[id]) || 0;
 
-  function diverPickSpot() {
-    const strat = S.diverStrategy || "hunter";
-    const available = D.DIVE_SPOTS.filter(s => diveSpotUnlocked(s));
-    if (!available.length) return null;
-
-    if (strat === "shallow") return available.some(s => s.id === "shallow") ? "shallow" : available[0].id;
-    if (strat === "cavern") return available.some(s => s.id === "cavern") ? "cavern" : available[available.length - 1].id;
-    if (strat === "abyss") return available.some(s => s.id === "abyss") ? "abyss" : available[available.length - 1].id;
-    if (strat === "deepest") return available[available.length - 1].id;
-
-    // Default: "hunter" (finds spot with most unowned/unmaxed relics)
-    let bestSpot = available[available.length - 1];
-    let bestUnmaxed = -1;
-    for (const spot of available) {
-      const pool = spot.relics || [];
-      const unmaxedCount = pool.filter(rId => (relicLevel(rId) < 3)).length;
-      if (unmaxedCount > bestUnmaxed) {
-        bestUnmaxed = unmaxedCount;
-        bestSpot = spot;
-      }
-    }
-    return bestSpot.id;
-  }
-
-  // ---------- Helpers (automation) ----------
-  const helperTimers = {};
-  function bestBuilding() {
-    let best = null, bestScore = Infinity;
-    BUILDINGS.forEach((b, i) => {
-      if (!buildingVisible(b, i)) return;
-      const score = costOf(b, S.buildings[b.id], 1) / Math.max(1e-9, buildingFps(b.id));
-      if (score < bestScore) { bestScore = score; best = b; }
-    });
-    return best;
-  }
-
-  function buildingDeltaFps(b) {
-    const owned = S.buildings[b.id] || 0;
-    const currentUnitFps = M.bFps[b.id];
-    const nextOwned = owned + 1;
-    const msCrossed = milestonesReached(nextOwned) > milestonesReached(owned);
-    if (msCrossed) {
-      return currentUnitFps * (M.milestoneMult * nextOwned - owned);
-    }
-    return currentUnitFps;
-  }
-
-  function upgradeDeltaFps(u) {
-    if (!u) return 0;
-    if (u.kind === "building" && u.building) {
-      return (M.bFps[u.building] || 0) * (S.buildings[u.building] || 0);
-    }
-    if (u.kind === "synergy" && u.pair) {
-      const [a, b] = u.pair;
-      const aBoost = 0.02 * Math.min(100, S.buildings[b] || 0) * (M.synergy || 1);
-      const bBoost = 0.005 * Math.min(100, S.buildings[a] || 0) * (M.synergy || 1);
-      return ((M.bFps[a] || 0) * (S.buildings[a] || 0) * aBoost) +
-             ((M.bFps[b] || 0) * (S.buildings[b] || 0) * bBoost);
-    }
-    if (u.kind === "global" && u.pct) {
-      return fishPerSecond(false) * (u.pct / 100);
-    }
-    if (u.kind === "scrapbook") {
-      const per = [0.005, 0.01, 0.02][u.id.split("_")[1]] || 0.01;
-      return fishPerSecond(false) * per * S.achievements.length;
-    }
-    return 1e-4;
-  }
-
-  // Shopkeeper Pip: picks upgrades based on player strategy ("impact" [default], "efficiency", "cheapest")
-  const SHOPKEEPER_SAVE_SECS = 30;
-  function shopkeeperPick() {
-    const strat = S.shopkeeperStrategy || "impact";
-    const available = availableUpgrades();
-    if (!available.length) return null;
-
-    if (strat === "cheapest") {
-      const first = available[0];
-      return S.fish >= upgradeCost(first) ? first : null;
-    }
-
-    if (strat === "efficiency") {
-      let best = null, bestScore = Infinity;
-      let aff = null, affScore = Infinity;
-      for (const u of available) {
-        const cost = upgradeCost(u);
-        const delta = upgradeDeltaFps(u);
-        const score = cost / Math.max(1e-9, delta);
-        if (score < bestScore) { bestScore = score; best = u; }
-        if (cost <= S.fish && score < affScore) { affScore = score; aff = u; }
-      }
-      if (!best || best === aff) return aff;
-      const gap = upgradeCost(best) - S.fish;
-      return gap / Math.max(1e-9, fishPerSecond(false)) <= SHOPKEEPER_SAVE_SECS ? null : aff;
-    }
-
-    // Default: "impact" (prioritizes raw highest boost to total production)
-    let best = null, bestDelta = -1;
-    let aff = null, affDelta = -1;
-    for (const u of available) {
-      const cost = upgradeCost(u);
-      const delta = upgradeDeltaFps(u);
-      if (delta > bestDelta) { bestDelta = delta; best = u; }
-      if (cost <= S.fish && delta > affDelta) { affDelta = delta; aff = u; }
-    }
-    if (!best || best === aff) return aff;
-    const gap = upgradeCost(best) - S.fish;
-    return gap / Math.max(1e-9, fishPerSecond(false)) <= SHOPKEEPER_SAVE_SECS ? null : aff;
-  }
-
-  // Foreman Waddles: picks colony members based on the player's chosen strategy
-  // - "impact" (default): prioritizes whichever member makes the biggest difference to production
-  // - "efficiency": best value for money (fastest payback / ROI)
-  // - "cheapest": buys the cheapest affordable member to sweep up milestone bonuses
-  const FOREMAN_SAVE_SECS = 30;
-  function foremanPick() {
-    const strat = S.foremanStrategy || "impact";
-    if (strat === "cheapest") {
-      let cheap = null, minCost = Infinity;
-      BUILDINGS.forEach((b, i) => {
-        if (!buildingVisible(b, i)) return;
-        const cost = costOf(b, S.buildings[b.id], 1);
-        if (cost <= S.fish && cost < minCost) { minCost = cost; cheap = b; }
-      });
-      return cheap;
-    }
-
-    if (strat === "efficiency" || strat === "balanced") {
-      let best = null, bestScore = Infinity, aff = null, affScore = Infinity;
-      BUILDINGS.forEach((b, i) => {
-        if (!buildingVisible(b, i)) return;
-        const cost = costOf(b, S.buildings[b.id], 1);
-        const score = cost / Math.max(1e-9, buildingFps(b.id));
-        if (score < bestScore) { bestScore = score; best = b; }
-        if (cost <= S.fish && score < affScore) { affScore = score; aff = b; }
-      });
-      if (!best || best === aff) return aff;
-      const gap = costOf(best, S.buildings[best.id], 1) - S.fish;
-      return gap / Math.max(1e-9, fishPerSecond(false)) <= FOREMAN_SAVE_SECS ? null : aff;
-    }
-
-    // Default: "impact"
-    let best = null, bestDelta = -1;
-    let aff = null, affDelta = -1;
-    BUILDINGS.forEach((b, i) => {
-      if (!buildingVisible(b, i)) return;
-      const cost = costOf(b, S.buildings[b.id], 1);
-      const delta = buildingDeltaFps(b);
-      if (delta > bestDelta) { bestDelta = delta; best = b; }
-      if (cost <= S.fish && delta > affDelta) { affDelta = delta; aff = b; }
-    });
-    if (!best || best === aff) return aff;
-    const gap = costOf(best, S.buildings[best.id], 1) - S.fish;
-    return gap / Math.max(1e-9, fishPerSecond(false)) <= FOREMAN_SAVE_SECS ? null : aff;
-  }
-
-  function runHelpers(dt) {
-    HELPERS.forEach(h => {
-      if (!helperOn(h.id)) return;
-      helperTimers[h.id] = (helperTimers[h.id] || 0) + dt;
-      if (helperTimers[h.id] < h.every) return;
-      helperTimers[h.id] = 0;
-      let did = 0;
-      if (h.id === "shopkeeper") {
-        for (let k = 0; k < 10; k++) {
-          const u = shopkeeperPick();
-          if (!u || !buyUpgrade(u.id, null, true)) break;
-          did++;
-        }
-        if (did) bus.emit("structure");
-      }
-      if (h.id === "foreman") {
-        for (let k = 0; k < 25; k++) {
-          const b = foremanPick();
-          if (!b || !buyBuilding(b.id, 1, null, true)) break;
-          did++;
-        }
-        if (did) bus.emit("structure");
-      }
-      if (h.id === "tinker") {
-        for (let k = 0; k < 5; k++) {
-          const r = RESEARCH.filter(x => researchUnlocked(x) && researchLevel(x.id) < x.max)
-            .sort((a, b) => researchCost(a, researchLevel(a.id)) - researchCost(b, researchLevel(b.id)))[0];
-          if (!r || !buyResearch(r.id, null, true)) break;
-          did++;
-        }
-        if (did) bus.emit("structure");
-      }
-      if (h.id === "planner" && pendingFeathers() >= Math.max(1, S.feathersEarned)) {
-        did = doMigrate(S.nextShore, true) ? 1 : 0;
-      }
-      if (h.id === "diver") {
-        const active = activeDive();
-        if (active && active.ready) {
-          claimDive(true);
-          did++;
-        }
-        if (!activeDive()) {
-          const spotId = diverPickSpot();
-          if (spotId && startDive(spotId, true)) {
-            did++;
-          }
-        }
-      }
-      if (did) bus.emit("helperAct", { h, count: did });
-    });
-  }
+  // Helper automation AI lives in src/engine-helpers.js (PI.helpers / PI.engine)
+  const diverPickSpot = () => (E.diverPickSpot ? E.diverPickSpot() : null);
+  const bestBuilding = () => (E.bestBuilding ? E.bestBuilding() : null);
+  const runHelpers = dt => (E.runHelpers ? E.runHelpers(dt) : false);
 
   // ---------- Per-frame update ----------
   let autoTimer = 0, histTimer = 0, napMinute = false;
@@ -1233,239 +1030,16 @@
   }
 
   // =====================================================================
-  // Saves: versioned, migrated step by step, validated field by field
+  // Saves: moved to src/engine-save.js (PI.save / PI.engine)
   // =====================================================================
-
-  // Each entry upgrades a save from version N to N+1. Never delete one: old saves walk the whole chain.
-  const MIGRATIONS = {
-    0: d => d,  // saves made before versioning already have the v1 shape
-    1: d => {   // v2: added sound, ambience, shake, reduce-motion and text-size settings
-      d.settings = Object.assign(defaultSettings(), d.settings || {});
-      return d;
-    },
-    2: d => {   // v3: heirlooms became a levelled skill tree (list of ids -> {id: level}); added the Workshop
-      const h = d.heritage;
-      d.heritage = Array.isArray(h) ? Object.fromEntries(h.map(id => [id, 1])) : (h && typeof h === "object" ? h : {});
-      d.research = d.research && typeof d.research === "object" ? d.research : {};
-      return d;
-    },
-    3: d => {   // v4: helpers, shores, wardrobe, letters, seasons and production history
-      d.helpers = {};
-      d.shore = "home";
-      d.nextShore = "home";
-      d.shoresVisited = ["home"];
-      d.cosmetics = { hat: "coral", scarf: "coral", item: "mug" };
-      d.seasonalUnlocks = [];
-      d.letters = { day: "", list: [], bonus: false };
-      d.history = [];
-      return d;
-    },
-  };
-
-  class SaveError extends Error {
-    constructor(kind, message) { super(message); this.kind = kind; }
-  }
-
-  function hash(str) {   // FNV-1a: detects truncated or edited save text (not anti-cheat)
-    let h = 0x811c9dc5;
-    for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193); }
-    return (h >>> 0).toString(36);
-  }
-
-  function encodeSave() {
-    const { buffs, ...data } = S;   // buffs are short-lived; don't persist them
-    const b64 = btoa(unescape(encodeURIComponent(JSON.stringify({ ...data, version: SAVE_VERSION }))));
-    return `${b64}.${hash(b64)}`;
-  }
-
-  // Moving to another device: the save as plain JSON without the production graph, to keep links and QR codes short
-  function transferJSON() {
-    const { buffs, history, ...data } = S;
-    return JSON.stringify({ ...data, version: SAVE_VERSION });
-  }
-  function fromTransferJSON(json) {
-    let data;
-    try { data = JSON.parse(json); } catch (e) { throw new SaveError("corrupt", "This link's save couldn't be read."); }
-    if (!data || typeof data !== "object" || Array.isArray(data)) throw new SaveError("corrupt", "This link's save couldn't be read.");
-    return validate(migrateSave(data));
-  }
-
-  function decodeSave(str) {
-    str = String(str || "").trim();
-    if (!str) throw new SaveError("empty", "There's no save text.");
-    let b64 = str;
-    const dot = str.lastIndexOf(".");
-    if (dot > 0) {   // v1 saves have no checksum, so it's optional
-      b64 = str.slice(0, dot);
-      if (hash(b64) !== str.slice(dot + 1)) throw new SaveError("corrupt", "This save text is incomplete or has been changed.");
-    }
-    let data;
-    try { data = JSON.parse(decodeURIComponent(escape(atob(b64)))); }
-    catch (e) { throw new SaveError("corrupt", "This save text couldn't be read."); }
-    if (!data || typeof data !== "object" || Array.isArray(data)) throw new SaveError("corrupt", "This save text couldn't be read.");
-    return validate(migrateSave(data));
-  }
-
-  function migrateSave(d) {
-    let v = Number.isInteger(d.version) ? d.version : 0;
-    if (v > SAVE_VERSION) {
-      throw new SaveError("newer", `This save is from a newer version of Penguin Idle (save v${v}, this page v${SAVE_VERSION}). Refresh the page to get the latest version.`);
-    }
-    while (v < SAVE_VERSION) { d = MIGRATIONS[v](d); v++; d.version = v; }
-    return d;
-  }
-
-  const num = v => (typeof v === "number" && v >= 0 ? (isFinite(v) ? Math.min(v, MAX) : MAX) : 0);
-  const idList = (v, table) => [...new Set(Array.isArray(v) ? v : [])].filter(id => table[id]);
-  const obj = v => (v && typeof v === "object" && !Array.isArray(v) ? v : {});
-
-  // Rebuild a clean state from plain data, checking every field rather than trusting the file
-  function validate(data) {
-    const s = freshState();
-    ["fish", "runFish", "lifetimeFish", "feathersEarned", "migrations"].forEach(k => { s[k] = num(data[k]); });
-    s.migrations = Math.floor(s.migrations);
-    s.bonusFeathers = Math.floor(Math.max(0, num(data.bonusFeathers)));
-    BUILDINGS.forEach(b => { s.buildings[b.id] = Math.floor(num(obj(data.buildings)[b.id])); });
-    s.upgrades = idList(data.upgrades, UP_BY_ID);
-    const levels = (v, list) => {   // {id: level} limited to known ids and each one's max level
-      const out = {}, src = obj(v);
-      list.forEach(x => { const L = Math.min(x.max, Math.floor(num(src[x.id]))); if (L > 0 && x.id !== "spirit") out[x.id] = L; });
-      return out;
-    };
-    s.heritage = levels(data.heritage, TREE);
-    s.research = levels(data.research, RESEARCH);
-    const hIn = obj(data.helpers);
-    HELPERS.forEach(h => { if (h.id in hIn) s.helpers[h.id] = hIn[h.id] === true; });
-    const fStrat = data.foremanStrategy === "balanced" ? "efficiency" : data.foremanStrategy;
-    s.foremanStrategy = (typeof fStrat === "string" && FOREMAN_STRATEGY_BY_ID[fStrat])
-      ? fStrat : "impact";
-    s.shopkeeperStrategy = (typeof data.shopkeeperStrategy === "string" && SHOPKEEPER_STRATEGY_BY_ID[data.shopkeeperStrategy])
-      ? data.shopkeeperStrategy : "impact";
-    s.diverStrategy = (typeof data.diverStrategy === "string" && D.DIVER_STRATEGY_BY_ID[data.diverStrategy])
-      ? data.diverStrategy : "hunter";
-    // Derived from what's owned, not trusted from the file
-    s.feathersSpent = treeSpentOn(s.heritage) + helpersSpentOn(s.helpers);
-    s.achievements = idList(data.achievements, Object.fromEntries(ACHIEVEMENTS.map(a => [a.id, true])));
-    const achDates = obj(data.achDates);
-    // Memories collected before dates were kept are dated to the day they're first loaded
-    s.achievements.forEach(id => { const t = num(achDates[id]); s.achDates[id] = t > 0 ? t : now(); });
-    s.achNew = idList(data.achNew, Object.fromEntries(s.achievements.map(id => [id, true])));
-    s.shoresVisited = idList(data.shoresVisited, SHORE_BY_ID);
-    if (!s.shoresVisited.includes("home")) s.shoresVisited.unshift("home");
-    s.shore = SHORE_BY_ID[data.shore] ? data.shore : "home";
-    s.nextShore = SHORE_BY_ID[data.nextShore] ? data.nextShore : "home";
-    s.shoreStamps = idList(data.shoreStamps, SHORE_BY_ID);
-    const stDates = obj(data.shoreStampDates);
-    s.shoreStamps.forEach(id => { const t = num(stDates[id]); s.shoreStampDates[id] = t > 0 ? t : now(); });
-    const cook = obj(data.cooking);
-    if (cook.id && D.COOKING_RECIPE_BY_ID[cook.id] && num(cook.until) > now()) {
-      s.cooking = { id: cook.id, until: num(cook.until), startedAt: num(cook.startedAt) };
-    } else {
-      s.cooking = { id: "", until: 0, startedAt: 0 };
-    }
-    const relIn = obj(data.relics);
-    s.relics = {};
-    D.RELICS.forEach(r => {
-      const lvl = Math.floor(num(relIn[r.id]));
-      if (lvl >= 1) s.relics[r.id] = Math.min(3, lvl);
-    });
-    const dv = obj(data.dive);
-    if (dv.spotId && D.DIVE_SPOT_BY_ID[dv.spotId] && num(dv.until) > 0) {
-      const t = now();
-      const ready = dv.ready === true || num(dv.until) <= t;
-      s.dive = { spotId: dv.spotId, startedAt: num(dv.startedAt), until: num(dv.until), ready };
-    } else {
-      s.dive = { spotId: "", startedAt: 0, until: 0, ready: false };
-    }
-    s.seasonalUnlocks = idList(data.seasonalUnlocks, SEASON_BY_ID);
-    s.napStars = (Array.isArray(data.napStars) ? data.napStars : []).slice(0, NAP_STARS).map(num);
-    const ns = obj(data.napStreak), day = v => (typeof v === "string" && /^\d{4}-\d\d-\d\d$/.test(v) ? v : "");
-    s.napStreak = { day: day(ns.day), secs: num(ns.secs), last: day(ns.last), count: Math.floor(num(ns.count)), best: Math.floor(num(ns.best)), grace: day(ns.grace) };
-    const cos = obj(data.cosmetics);
-    Object.keys(COSMETICS).forEach(slot => { if (COSMETICS[slot].some(c => c.id === cos[slot])) s.cosmetics[slot] = cos[slot]; });
-    s.names = (Array.isArray(data.names) ? data.names : []).slice(0, NAME_SLOTS).map(cleanName);
-    s.defaultNames = (Array.isArray(data.defaultNames) ? data.defaultNames : []).slice(0, NAME_SLOTS).map(cleanName);
-    const L = obj(data.letters);
-    if (typeof L.day === "string" && Array.isArray(L.list)) {
-      s.letters.day = L.day;
-      s.letters.bonus = L.bonus === true;
-      s.letters.list = L.list.filter(l => l && LT_BY_ID[l.type]).slice(0, 6).map(l => ({
-        type: l.type, target: Math.max(1, num(l.target)), base: num(l.base), claimed: l.claimed === true, late: l.late === true,
-        sender: String(l.sender || "A friend").slice(0, 40), icon: String(l.icon || "🐧").slice(0, 8),
-      }));
-    }
-    s.history = (Array.isArray(data.history) ? data.history : [])
-      .filter(p => Array.isArray(p) && (p.length === 2 || p.length === 3))
-      .map(([t, v, n]) => (n === 1 ? [num(t), num(v), 1] : [num(t), num(v)])).slice(-HISTORY_LEN);
-    const st = obj(data.stats);
-    Object.keys(s.stats).forEach(k => { if (num(st[k]) > 0) s.stats[k] = num(st[k]); });
-    const ds = defaultSettings(), inSet = obj(data.settings);
-    Object.keys(ds).forEach(k => { if (typeof inSet[k] === typeof ds[k]) s.settings[k] = inSet[k]; });
-    s.settings.volume = Math.min(1, Math.max(0, s.settings.volume));
-    s.settings.musicVolume = Math.min(1, Math.max(0, s.settings.musicVolume));
-    s.settings.shake = Math.min(1, Math.max(0, s.settings.shake));
-    if (!TEXT_SIZES.includes(s.settings.textSize)) s.settings.textSize = 1;
-    if (!["auto", "on", "off"].includes(s.settings.batterySaver)) s.settings.batterySaver = "auto";
-    if (![0, 5, 15, 30].includes(s.settings.autoNap)) s.settings.autoNap = 0;
-    if (!BEDTIMES.includes(s.settings.bedtime)) s.settings.bedtime = "off";
-    s.lastTick = num(data.lastTick) || now();
-    // Saves from before What's new existed have no seenVersion: those players get the news too
-    s.seenVersion = typeof data.seenVersion === "string" ? data.seenVersion.slice(0, 16) : "";
-    return s;
-  }
-
-  // ---------- Storage (browser only) ----------
-  let savingBlocked = false;   // set when the stored save is from a newer version, so we never clobber it
-  const storage = () => { try { return typeof localStorage !== "undefined" ? localStorage : null; } catch (e) { return null; } };
-
-  function save() {
-    const ls = storage();
-    if (savingBlocked || !ls) return false;
-    try {
-      S.lastTick = now();
-      const prev = ls.getItem(SAVE_KEY);
-      if (prev) ls.setItem(SAVE_KEY + "_bak", prev);   // keep the last good save
-      ls.setItem(SAVE_KEY, encodeSave());
-      return true;
-    } catch (e) { return false; }
-  }
-
-  // Returns {title, body} to show the player if anything went wrong (fail loudly, never silently)
-  function load() {
-    const ls = storage();
-    let raw = null, bak = null;
-    if (ls) { try { raw = ls.getItem(SAVE_KEY); bak = ls.getItem(SAVE_KEY + "_bak"); } catch (e) { /* ignore */ } }
-    if (!raw && !bak) { recompute(); return null; }
-    try {
-      S = decodeSave(raw);
-      recompute();
-      return null;
-    } catch (e) {
-      if (e.kind === "newer") {
-        savingBlocked = true;
-        recompute();
-        return { kind: "newer", title: "This save is from a newer version", body: `<p>${e.message}</p><p class="muted">Nothing will be saved until you refresh, so your progress is safe.</p>` };
-      }
-      try {
-        S = decodeSave(bak);
-        recompute();
-        return { kind: "backup", title: "We restored your backup", body: "<p>Your latest save couldn't be read, so we loaded the backup from a few moments earlier.</p>" };
-      } catch (e2) {
-        try { ls.setItem(SAVE_KEY + "_corrupt", raw || bak); } catch (e3) { /* ignore */ }
-        S = freshState();
-        recompute();
-        return { kind: "corrupt", title: "Your save couldn't be loaded", body: `<p>Sorry! Your save and its backup were both unreadable, so you're starting a fresh colony.</p>
-          <p class="muted">A copy of the damaged save was kept in this browser's storage under <code>${SAVE_KEY}_corrupt</code>.</p>` };
-      }
-    }
-  }
+  const save = () => (E.save ? E.save() : false);
 
   function replaceState(newState) {
     S = newState;
     S.buffs = [];
     S.lastTick = now();
     manualPatTimes.length = 0;
-    savingBlocked = false;
+    if (E.savingBlocked !== undefined) E.savingBlocked = false;
     recompute();
     bus.emit("stateReplaced");
     bus.emit("structure");
@@ -1477,14 +1051,13 @@
   // =====================================================================
   // Live getters (Object.assign would copy their values once, so define them properly)
   Object.defineProperties(E, {
-    state: { get: () => S, enumerable: true },
+    state: { get: () => S, set: v => { S = v; }, enumerable: true },
     M: { get: () => M, enumerable: true },
-    savingBlocked: { get: () => savingBlocked, enumerable: true },
   });
   Object.assign(E, {
     MAX, bus, now,
     setSeasonOverride(v) { seasonOverride = v; recompute(); },
-    defaultSettings, freshState, recompute, replaceState,
+    defaultSettings, freshState, recompute, replaceState, treeSpentOn, helpersSpentOn,
     has, milestonesReached, nodeLevel, nodeCost, nodeReqsMet, spendableFeathers, helperOn,
     researchLevel, researchCost, researchUnlocked, upgradeCost, currentSeason,
     buffMult, setNapping, napMult, fishPerSecond, buildingFps, clickPower, costOf, maxAffordable, previewBuy, buildingVisible,
@@ -1501,7 +1074,7 @@
     passportProgress, checkPassportStamps,
     recipeCost, recipeUnlocked, activeDish, cookRecipe,
     diveSpotUnlocked, activeDive, startDive, claimDive, relicLevel,
-    encodeSave, decodeSave, save, load, SaveError, transferJSON, fromTransferJSON, nextGoal, memoryProgress, nearestMemories, secsToNewDay,
+    nextGoal, memoryProgress, nearestMemories, secsToNewDay,
   });
   PI.engine = E;
   PI.bus = bus;

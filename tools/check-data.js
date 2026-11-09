@@ -5,6 +5,8 @@ const path = require("path");
 globalThis.PI = {};
 require(path.join(__dirname, "../src/data.js"));
 require(path.join(__dirname, "../src/engine.js"));
+require(path.join(__dirname, "../src/engine-save.js"));
+require(path.join(__dirname, "../src/engine-helpers.js"));
 const { data: D, engine: E } = globalThis.PI;
 
 const problems = [];

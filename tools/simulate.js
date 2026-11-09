@@ -28,6 +28,8 @@ Math.random = () => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (
 globalThis.PI = {};
 require(path.join(__dirname, "../src/data.js"));
 require(path.join(__dirname, "../src/engine.js"));
+require(path.join(__dirname, "../src/engine-save.js"));
+require(path.join(__dirname, "../src/engine-helpers.js"));
 const { engine: E, data: D, fmt, fmtTime } = globalThis.PI;
 
 let simTime = Date.UTC(2026, 9, 1);   // October: no seasonal event
