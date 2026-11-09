@@ -25,17 +25,7 @@ const JSON_OUT = flag("json");
 let seed = SEED >>> 0 || 1;
 Math.random = () => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 
-globalThis.PI = {};
-require(path.join(__dirname, "../src/data.js"));
-require(path.join(__dirname, "../src/engine/engine.js"));
-require(path.join(__dirname, "../src/engine/math.js"));
-require(path.join(__dirname, "../src/engine/actions.js"));
-require(path.join(__dirname, "../src/engine/save.js"));
-require(path.join(__dirname, "../src/engine/helpers.js"));
-require(path.join(__dirname, "../src/engine/progress.js"));
-require(path.join(__dirname, "../src/engine/events.js"));
-require(path.join(__dirname, "../src/engine/activities.js"));
-const { engine: E, data: D, fmt, fmtTime } = globalThis.PI;
+const { engine: E, data: D, fmt, fmtTime } = require(path.join(__dirname, "load-engine.js"));
 
 let simTime = Date.UTC(2026, 9, 1);   // October: no seasonal event
 const START = simTime;

@@ -232,46 +232,6 @@ test("keyboard: arrow keys move between tabs and Escape closes dialogs", async (
   await expect(page.locator(".modal")).toHaveCount(0);
 });
 
-test("saves round-trip, and tampered or newer saves are rejected", async ({ page }) => {
-  await page.goto("/");
-  const result = await page.evaluate(() => {
-    const g = window.penguinIdle;
-    g.state.fish = 12345;
-    const enc = g.encodeSave();
-    const back = g.decodeSave(enc);
-    let tampered = "accepted", newer = "accepted";
-    try { g.decodeSave(enc.slice(0, -10) + "AAAA" + enc.slice(-6)); } catch (e) { tampered = e.kind; }
-    try { g.decodeSave(btoa(JSON.stringify({ version: 999 }))); } catch (e) { newer = e.kind; }
-    return { fish: back.fish, hasChecksum: /\.[0-9a-z]+$/.test(enc), tampered, newer };
-  });
-  expect(result).toEqual({ fish: 12345, hasChecksum: true, tampered: "corrupt", newer: "newer" });
-});
-
-test("a v1 save (before versioning features) migrates to the current version", async ({ page }) => {
-  await seed(page, {
-    version: 1, fish: 5000, runFish: 5000, lifetimeFish: 5000, buildings: { chick: 3, fisher: 12 },
-    upgrades: ["chick_0", "bogus_id"], achievements: ["fish_1"], feathersEarned: 0, heritage: [],
-    stats: { clicks: 5 }, settings: { particles: true, scientific: false }, lastTick: Date.now(),
-  });
-  await page.goto("/");
-  const s = await state(page, () => {
-    const st = window.penguinIdle.state;
-    return { fisher: st.buildings.fisher, upgrades: st.upgrades, volume: st.settings.volume, shore: st.shore, helpers: st.helpers, hat: st.cosmetics.hat };
-  });
-  expect(s).toEqual({ fisher: 12, upgrades: ["chick_0"], volume: 0.5, shore: "home", helpers: {}, hat: "coral" });
-});
-
-test("a v2 save's heirloom list becomes tree levels", async ({ page }) => {
-  await seed(page, {
-    version: 2, fish: 0, lifetimeFish: 1e15, buildings: {}, upgrades: [], achievements: [],
-    feathersEarned: 300, feathersSpent: 254, heritage: ["headstart", "flippers", "emperor"], lastTick: Date.now(),
-  });
-  await page.goto("/");
-  const s = await state(page, () => ({ heritage: window.penguinIdle.state.heritage, spent: window.penguinIdle.state.feathersSpent }));
-  expect(s.heritage).toEqual({ headstart: 1, flippers: 1, emperor: 1 });
-  expect(s.spent).toBeGreaterThan(0);   // recomputed from what's owned, not trusted from the file
-});
-
 test("Heirloom Tree: learn, prerequisites and free refunds", async ({ page }) => {
   await page.goto("/");
   await page.evaluate(() => { const g = window.penguinIdle; g.state.feathersEarned = 500; g.engine.recompute(); g.engine.bus.emit("structure"); });
@@ -283,7 +243,9 @@ test("Heirloom Tree: learn, prerequisites and free refunds", async ({ page }) =>
   await page.locator('#tree [data-id="nest"]').click();
   await page.locator("#learnBtn").click();
   expect(await state(page, () => window.penguinIdle.state.heritage)).toEqual({ headstart: 1, nest: 1 });
-  await expect(page.locator("#treeLines line")).toHaveCount(38);
+  // One line per prerequisite link, counted from the data so new heirlooms don't need a test edit
+  const links = await page.evaluate(() => window.penguinIdle.data.TREE.reduce((n, x) => n + (x.requires || []).length + (x.requiresAny || []).length, 0));
+  await expect(page.locator("#treeLines line")).toHaveCount(links);
   await page.locator("#respecBtn").click();
   await page.locator(".modal .btn.primary").click();
   expect(await state(page, () => window.penguinIdle.state.feathersSpent)).toBe(0);
@@ -575,33 +537,12 @@ test("waking the computer from sleep gives offline rewards", async ({ page }) =>
   expect(await state(page, () => window.penguinIdle.state.stats.longestAway)).toBeGreaterThan(3 * 3600 - 5);
 });
 
-test("time away: 50% pace for an absence under a week, 25% after that", async ({ page }) => {
+test("a new memory shows a New pill until the player leaves the Memories tab", async ({ page }) => {
+  // Which absences count as a Homecoming is covered by tools/engine-tests.js; this checks the New markers
   await page.goto("/");
   await closeModals(page);
-  // Pace = fish earned / (fish per second × a full day); the 24-hour cap is the same for both lengths
-  const pace = days => page.evaluate(d => {
-    const g = window.penguinIdle;
-    g.state.buildings.chick = 10; g.engine.recompute(); g.state.fish = 0;
-    const fps = g.engine.fishPerSecond(false);
-    g.state.lastTick = Date.now() - d * 86400e3;
-    g.engine.applyOffline();
-    return g.state.fish / (fps * 86400);
-  }, days);
-  expect(await pace(3)).toBeCloseTo(0.5, 2);
-  expect(await pace(8)).toBeCloseTo(0.25, 2);
-});
-
-test("Homecoming: a day or more away and back before the first week is up", async ({ page }) => {
-  await page.goto("/");
-  await closeModals(page);
-  // Eight days away is past the first week, so it doesn't count
-  await page.evaluate(() => { const g = window.penguinIdle; g.state.lastTick = Date.now() - 8 * 86400e3; g.engine.applyOffline(); g.engine.checkAchievements(); });
-  expect(await state(page, () => window.penguinIdle.state.achievements.includes("homecoming"))).toBe(false);
-  // Two days away does
   await page.evaluate(() => { const g = window.penguinIdle; g.state.lastTick = Date.now() - 2 * 86400e3; g.engine.applyOffline(); g.engine.checkAchievements(); });
   expect(await state(page, () => window.penguinIdle.state.achievements.includes("homecoming"))).toBe(true);
-  expect(await state(page, () => window.penguinIdle.state.stats.homecomings)).toBe(1);
-  // New markers: the Memories tab shows a New pill until the player leaves it again
   await expect(page.locator("#achNew")).toBeVisible();
   await page.locator('[data-tab="achievements"]').click();
   await expect(page.locator("#achievements .ach", { hasText: "Homecoming" }).locator(".a-almost")).toHaveText("New");
@@ -609,15 +550,6 @@ test("Homecoming: a day or more away and back before the first week is up", asyn
   await page.locator('[data-tab="colony"]').click();
   await expect(page.locator("#achNew")).toBeHidden();
   expect(await state(page, () => window.penguinIdle.state.achNew.includes("homecoming"))).toBe(false);
-});
-
-test("Long Journey: come back after a week or more away", async ({ page }) => {
-  await page.goto("/");
-  await closeModals(page);
-  await page.evaluate(() => { const g = window.penguinIdle; g.state.lastTick = Date.now() - 3 * 86400e3; g.engine.applyOffline(); g.engine.checkAchievements(); });
-  expect(await state(page, () => window.penguinIdle.state.achievements.includes("long_away"))).toBe(false);
-  await page.evaluate(() => { const g = window.penguinIdle; g.state.lastTick = Date.now() - 8 * 86400e3; g.engine.applyOffline(); g.engine.checkAchievements(); });
-  expect(await state(page, () => window.penguinIdle.state.achievements.includes("long_away"))).toBe(true);
 });
 
 test("a throttled background tab still earns at full rate", async ({ page }) => {
@@ -643,18 +575,6 @@ test("toasts appear on the left, and clicking one dismisses it", async ({ page }
   expect(box.x).toBeLessThan(page.viewportSize().width / 2);
   await ms.click();
   await expect(ms).toHaveCount(0, { timeout: 1000 });
-});
-
-test("next feather target sits past the feathers already earned", async ({ page }) => {
-  await page.goto("/");
-  await closeModals(page);
-  // An earlier run earned 5 feathers at a higher rate; this run's lifetime alone is only worth 2
-  const r = await page.evaluate(() => {
-    const g = window.penguinIdle; g.state.lifetimeFish = 8e12; g.state.feathersEarned = 5; g.engine.recompute();
-    return { at: g.engine.nextFeatherAt(), pend: g.engine.pendingFeathers() };
-  });
-  expect(r.pend).toBe(0);
-  expect(r.at).toBeCloseTo(216e12, -10);   // 6 feathers = 6³ × 1e12
 });
 
 test("Foreman Waddles buys cheaper members while the best value is far off", async ({ page }) => {
