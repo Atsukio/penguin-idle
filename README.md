@@ -76,8 +76,11 @@ src/penguin.js            the big penguin's SVG drawing, outfits and personality
 src/fx.js                 canvas particles and snow, screen shake, visual feedback
 src/qr.js                 a small QR code encoder for moving a colony to another device (no DOM)
 src/engine/
-  engine.js               game state, event bus, clock, production maths, purchases, migration, golden fish,
-                          letters, memories, cooking and diving
+  engine.js               game state, event bus, clock, production maths, patting, frame tick and offline progress
+  progress.js             memories (achievements) and shore passport stamps
+  events.js               wardrobe, nap streaks, resident names, golden fish and penguin letters
+  activities.js           campfire cooking and deep-sea diving
+  actions.js              colony purchases, research, heirlooms, helpers and migration
   save.js                 save/load persistence, migrations, export/import and validation
   helpers.js              automated helper AI (Pip, Barnaby, Marina) and decision logic
 src/ui/
