@@ -96,7 +96,8 @@ src/scene/
 src/audio/
   audio.js                synthesized sound effects and procedural lofi music
 src/main/
-  main.js                 startup, settings, hotkeys, saves, device moves, What's new, naps, PWA and frame loop
+  main.js                 startup, settings, hotkeys, nap mode and battery saver, PWA and frame loop
+  dialogs.js              save controls, What's new, and moving a colony to another device
 sw.js, manifest.webmanifest, icons/   installable offline app
 fonts/                    self-hosted Fredoka and Nunito (SIL OFL)
 tools/                    simulator, engine tests, data checks and a local server
