@@ -16,22 +16,26 @@
     if (hat.emoji) return `<text class="p-hat-emoji" x="100" y="40" text-anchor="middle" font-size="62">${hat.emoji}</text>`;
     if (hat.mask) {   // pushed up on the forehead, with sleepy eyes stitched on
       const [main, stitch, strap] = hat.mask;
-      return `<g class="p-mask"><path d="M50 60 Q100 40 150 60" fill="none" stroke="${strap}" stroke-width="5" stroke-linecap="round"/>
+      return `<g class="p-mask">
+      <path d="M50 60 Q100 40 150 60" fill="none" stroke="${strap}" stroke-width="5" stroke-linecap="round"/>
       <path d="M64 50 Q81 38 98 48 Q100 50 102 48 Q119 38 136 50 Q142 62 128 68 Q114 72 102 64 Q100 62 98 64 Q86 72 72 68 Q58 62 64 50 Z" fill="${main}"/>
       <path d="M72 56 Q80 62 88 56 M112 56 Q120 62 128 56" fill="none" stroke="${stitch}" stroke-width="2.5" stroke-linecap="round"/>
       <path d="M75 60 l-2 4 M80 61 l0 4 M85 60 l2 4 M115 60 l-2 4 M120 61 l0 4 M125 60 l2 4" stroke="${stitch}" stroke-width="1.8" stroke-linecap="round"/></g>`;
     }
     const [main, band, rib] = hat.beanie;
     const flakes = hat.snow ? `<text x="80" y="44" font-size="11" fill="#fff">❄</text><text x="110" y="34" font-size="9" fill="#fff">❄</text>` : "";
-    return `<path d="M52 58 Q100 -6 148 58 Z" fill="${main}"/>
+    return `
+      <path d="M52 58 Q100 -6 148 58 Z" fill="${main}"/>
       <path d="M70 40 L76 58 M88 30 L90 58 M112 30 L110 58 M130 40 L124 58" stroke="${rib}" stroke-width="3" stroke-linecap="round"/>
-      ${flakes}<rect x="46" y="52" width="108" height="15" rx="7.5" fill="${band}"/>
+      ${flakes}
+      <rect x="46" y="52" width="108" height="15" rx="7.5" fill="${band}"/>
       <g class="p-pom"><circle cx="100" cy="20" r="12" fill="${hat.id === "golden" ? "#fff2c6" : "#fdf6ec"}"/></g>`;
   }
 
   function scarfMarkup() {
     const [main, stripe] = E.cosmeticItem("scarf", S().cosmetics.scarf).colors;
-    return `<rect x="42" y="116" width="116" height="18" rx="9" fill="${main}"/>
+    return `
+      <rect x="42" y="116" width="116" height="18" rx="9" fill="${main}"/>
       <rect x="42" y="122" width="116" height="4" fill="${stripe}" opacity=".85"/>
       <g class="p-tail">
         <rect x="116" y="126" width="20" height="46" rx="6" fill="${main}" transform="rotate(-8 126 126)"/>
@@ -49,7 +53,8 @@
 
   function render() {
     const svg = document.getElementById("penguinSvg");
-    svg.innerHTML = `<defs>
+    svg.innerHTML = `
+      <defs>
         <linearGradient id="rainbowGrad" x1="0" x2="1">
           <stop offset="0" stop-color="#ff9a8b"/><stop offset=".25" stop-color="#ffd27a"/><stop offset=".5" stop-color="#a6e3bd"/>
           <stop offset=".75" stop-color="#a9c8ff"/><stop offset="1" stop-color="#d9b3ff"/>
@@ -263,7 +268,8 @@
       pending = requestAnimationFrame(() => { pending = null; lookAt({ x: e.clientX, y: e.clientY }); });
     }, { passive: true });
     PI.bus.on("click", onPat);
-    ["outfit", "stateReplaced"].forEach(ev => PI.bus.on(ev, render));
+    PI.bus.on("outfit", render);
+    PI.bus.on("stateReplaced", render);
     PI.bus.on("goldenSpawn", d => {   // look at the golden fish, a little surprised
       if (P.sleeping || !d) return;
       P.lookUntil = Date.now() + 2500;

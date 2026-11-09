@@ -130,25 +130,34 @@
         ctx.globalAlpha = Math.max(0, alpha);
         ctx.translate(p.x, p.y);
         if (p.kind === "flake") {
-          ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(0, 0, p.size, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = p.color;
+          ctx.beginPath(); ctx.arc(0, 0, p.size, 0, Math.PI * 2); ctx.fill();
         } else if (p.kind === "drop") {
           ctx.strokeStyle = p.color; ctx.lineWidth = 1.2; ctx.lineCap = "round";
           ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(p.vx * 0.03, p.vy * 0.03); ctx.stroke();
         } else if (p.kind === "glint") {
           ctx.fillStyle = p.color; ctx.shadowColor = p.color; ctx.shadowBlur = 8;
-          const s = p.size;
+          const s = p.size;   // a soft four-pointed sparkle
           ctx.beginPath(); ctx.moveTo(0, -s * 2); ctx.quadraticCurveTo(0, 0, s * 2, 0); ctx.quadraticCurveTo(0, 0, 0, s * 2);
           ctx.quadraticCurveTo(0, 0, -s * 2, 0); ctx.quadraticCurveTo(0, 0, 0, -s * 2); ctx.fill();
         } else if (p.kind === "bubble") {
-          ctx.strokeStyle = p.color; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(0, 0, p.size, 0, Math.PI * 2); ctx.stroke();
+          ctx.strokeStyle = p.color; ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.arc(0, 0, p.size, 0, Math.PI * 2); ctx.stroke();
         } else if (p.kind === "ring") {
-          ctx.strokeStyle = p.color; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 10 + k * 90, 0, Math.PI * 2); ctx.stroke();
+          const r = 10 + k * 90;
+          ctx.strokeStyle = p.color; ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
         } else {
-          ctx.rotate(p.rot); ctx.scale(scale, scale);
+          ctx.rotate(p.rot);
+          ctx.scale(scale, scale);
           ctx.font = p.kind === "num" ? `600 ${p.size}px Fredoka, Nunito, sans-serif` : `${p.size}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif`;
           ctx.textAlign = "center"; ctx.textBaseline = "middle";
-          if (p.kind === "num") { ctx.lineWidth = 4; ctx.strokeStyle = "rgba(40,20,30,.55)"; ctx.strokeText(p.text, 0, 0); ctx.fillStyle = p.color; ctx.fillText(p.text, 0, 0); }
-          else ctx.fillText(p.text, 0, 0);
+          if (p.kind === "num") {
+            ctx.lineWidth = 4; ctx.strokeStyle = "rgba(40,20,30,.55)"; ctx.strokeText(p.text, 0, 0);
+            ctx.fillStyle = p.color; ctx.fillText(p.text, 0, 0);
+          } else {
+            ctx.fillText(p.text, 0, 0);
+          }
         }
         ctx.restore();
 
@@ -227,20 +236,29 @@
   // =====================================================================
   // Audio delegation (Sound and procedural lofi Music live in src/audio.js)
   // =====================================================================
-  const Sound = (PI.audio && PI.audio.Sound) || (PI.fx && PI.fx.Sound) || { play() {}, ensure() { return null; }, setAmbience() {}, setVolume() {} };
-  const Music = (PI.audio && PI.audio.Music) || (PI.fx && PI.fx.Music) || { set() {}, start() {}, stop() {}, setMood() {}, setVolume() {}, label() { return ""; } };
+  const Sound = (PI.audio && PI.audio.Sound) || (PI.fx && PI.fx.Sound) || {
+    play() {}, ensure() { return null; }, setAmbience() {}, setVolume() {},
+  };
+  const Music = (PI.audio && PI.audio.Music) || (PI.fx && PI.fx.Music) || {
+    set() {}, start() {}, stop() {}, setMood() {}, setVolume() {}, label() { return ""; },
+  };
 
   // =====================================================================
   // Tiers and event wiring
   // =====================================================================
   const TIERS = {
-    small: { bits: 2, trauma: 0, ring: false }, medium: { bits: 8, trauma: 0.22, ring: false }, large: { bits: 22, trauma: 0.5, ring: true },
+    small:  { bits: 2,  trauma: 0,    ring: false },
+    medium: { bits: 8,  trauma: 0.22, ring: false },
+    large:  { bits: 22, trauma: 0.5,  ring: true },
   };
 
   function feedback(tier, pos, { sound, chars = ["✨", "❄️", "💛"] } = {}) {
     const t = TIERS[tier];
     if (sound) Sound.play(sound);
-    if (pos && pos.x != null) { burst(pos.x, pos.y, t.bits, chars); if (t.ring) glowRing(pos.x, pos.y); }
+    if (pos && pos.x != null) {
+      burst(pos.x, pos.y, t.bits, chars);
+      if (t.ring) glowRing(pos.x, pos.y);
+    }
     Shake.add(t.trauma);
   }
 
@@ -249,7 +267,7 @@
   function wire() {
     const bus = PI.bus;
     bus.on("click", d => {
-      if (d.crit) {
+      if (d.crit) {   // Big Catch: a step up from a normal pat, still short of a golden fish
         Sound.play("sparkle");
         numberPop(`Big Catch! +${PI.fmt(d.amount)}`, d.x, d.y, true);
         burst(d.x, d.y, 5, ["🐟", "🐡", "✨"]);
@@ -281,7 +299,10 @@
     bus.on("respec", () => Sound.play("chime"));
     bus.on("golden", d => {
       const v = d.variant || "golden";
-      const chars = v === "rainbow" ? ["🐠", "🌈", "✨", "🫧", "💖"] : v === "glacier" ? ["❄️", "🧊", "💎", "✨", "🐟"] : v === "feathered" ? ["🪶", "✨", "💛", "⭐", "🌟"] : ["🐟", "✨", "💛", "⭐"];
+      const chars = v === "rainbow" ? ["🐠", "🌈", "✨", "🫧", "💖"]
+                  : v === "glacier" ? ["❄️", "🧊", "💎", "✨", "🐟"]
+                  : v === "feathered" ? ["🪶", "✨", "💛", "⭐", "🌟"]
+                  : ["🐟", "✨", "💛", "⭐"];
       const sound = v === "glacier" ? "chime" : "fanfare";
       if (!d.auto) feedback("large", d, { sound, chars });
       else Sound.play(v === "glacier" ? "chime" : "sparkle");
