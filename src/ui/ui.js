@@ -117,49 +117,13 @@
     $("newsBadge").classList.toggle("hidden", !news);
     $("whatsNewBtn").classList.toggle("has-news", news);
   }
-  const hasNews = () => S().seenVersion !== D.GAME_VERSION;
-
-  // Locked memories over halfway, recomputed about every two seconds rather than every frame
-  let nearCache = [], nearCacheAt = -Infinity;
-  function nearMemoryList() {
-    const t = E.now();
-    if (t - nearCacheAt > 2000) { nearCacheAt = t; nearCache = E.nearestMemories(99, 0.5); }
-    return nearCache.filter(m => !S().achievements.includes(m.a.id));
-  }
-
-  function renderLetterReset() {
-    const secs = E.secsToNewDay(new Date(E.now()));
-    const h = Math.floor(secs / 3600), mi = Math.floor((secs % 3600) / 60);
-    const left = `${h}h ${String(mi).padStart(2, "0")}m`;
-    setText($("letterReset"), `New letters in ${left}`);
-    const top = $("resetIn");
-    if (!top) return;
-    setText(top, `Letters reset in ${left}`);
-    if (!top.dataset.bound) {
-      top.dataset.bound = "1";
-      top.setAttribute("role", "button");
-      top.setAttribute("tabindex", "0");
-      top.addEventListener("click", () => selectTab("home", true));
-      top.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectTab("home", true); } });
-    }
-  }
-
-  function renderNextGoal() {
-    const g = E.nextGoal(), el = $("nextGoal");
-    if (!el) return;
-    const m = nearMemoryList().find(x => x.frac >= 0.8) || null;
-    if (!el.dataset.bound) {
-      el.dataset.bound = "1";
-      el.addEventListener("click", () => { if (el.classList.contains("clickable")) selectTab("achievements", true); });
-    }
-    el.classList.toggle("clickable", !!m);
-    el.classList.toggle("hidden", !g && !m);
-    if (!g && !m) return;
-    const eta = !g || g.secs == null ? "" : g.secs < 1 ? " · any moment" : g.secs > 86400 * 2 ? "" : ` · about ${fmtTime(Math.max(1, g.secs))}`;
-    const mem = m ? `📔 ${m.a.name} ${Math.floor(m.frac * 100)}%` : "";
-    setText(el, [g ? `Next: ${g.icon} ${g.name} in 🐟 ${fmt(Math.ceil(g.need))}${eta}` : "", mem].filter(Boolean).join(" · "));
-    el.title = [g ? `${g.name} costs 🐟 ${fmt(g.cost)}` : "", m ? `Nearly a new memory: ${m.a.name}. ${m.a.desc}` : ""].filter(Boolean).join(" · ");
-  }
+  // ---------- Moved to src/ui/topbar.js: top bar extras: news dot, letter reset, next goal, warmth, buffs and season badge ----------
+  function hasNews(...args) { return PI.uiTopbar.hasNews(...args); }
+  function renderLetterReset(...args) { return PI.uiTopbar.renderLetterReset(...args); }
+  function renderNextGoal(...args) { return PI.uiTopbar.renderNextGoal(...args); }
+  function renderWarmth(...args) { return PI.uiTopbar.renderWarmth(...args); }
+  function renderBuffs(...args) { return PI.uiTopbar.renderBuffs(...args); }
+  function renderSeasonBadge(...args) { return PI.uiTopbar.renderSeasonBadge(...args); }
 
   function bumpCounter() {
     const p = $("fish") && $("fish").parentElement;
@@ -173,16 +137,6 @@
     const real = S().fish;
     shownFish = Math.abs(real - shownFish) / Math.max(1, real) < 0.002 || S().settings.reduceMotion || PI.powerSaving ? real : shownFish + (real - shownFish) * 0.35;
     setText($("fish"), fmt(Math.floor(shownFish)));
-  }
-
-  function renderWarmth() {
-    const w = E.warmthLevel(), box = $("warmth");
-    if (!box) return;
-    box.classList.toggle("on", w > 0);
-    box.classList.toggle("toasty", w >= 1);
-    const fill = $("warmthFill");
-    if (fill) fill.style.width = `${Math.round(w * 100)}%`;
-    setText($("warmthLabel"), w >= 1 ? `Toasty! +${Math.round(E.WARMTH_BONUS * 100)}% pats` : w > 0 ? `Warming up +${Math.round(w * E.WARMTH_BONUS * 100)}%` : "");
   }
 
   function tick() {
@@ -204,14 +158,6 @@
     if (dialogs().renderSheet) dialogs().renderSheet();
   }
 
-  function renderBuffs() {
-    const now = E.now();
-    const html = S().buffs.filter(b => b.until > now)
-      .map(b => `<span class="buff">${b.name} ×${b.mult} · ${Math.ceil((b.until - now) / 1000)}s</span>`).join("");
-    const buffsEl = $("buffs");
-    if (buffsEl && buffsEl.innerHTML !== html) buffsEl.innerHTML = html;
-  }
-
   function slowTick() {
     const M_UI = memoriesUI(), P = panels(), A = activities(), S_SC = scene();
     if (M_UI.renderNapStars) M_UI.renderNapStars();
@@ -230,14 +176,6 @@
     if (S_SC.rebuildScene) S_SC.rebuildScene();
     if (S_SC.updateBasket) S_SC.updateBasket();
     renderSeasonBadge();
-  }
-
-  function renderSeasonBadge() {
-    const se = M().season;
-    const b = $("seasonBadge");
-    if (!b) return;
-    b.classList.toggle("hidden", !se);
-    if (se) { setText(b, `${se.icon} ${se.name}`); b.title = se.desc; }
   }
 
   // ---------- Structural refresh (event-driven) ----------
@@ -339,63 +277,8 @@
       : `<b>Welcome to ${d.shore.icon} ${d.shore.name}!</b> The colony settles in with 🪶 ${fmt(d.feathers)} feathers.`));
   }
 
-  // Patting interaction wiring
-  const STROKE_PX = 40;
-  const STROKE_GAP = 70;
-  const HOLD_DELAY = 450;
-  const HOLD_EVERY = 200;
-  function wirePatting(peng) {
-    if (!peng) return;
-    let active = null;
-    const pat = (pt, how) => E.clickPenguin(pt, false, how);
-    const stopHold = () => { if (active) { clearTimeout(active.holdTimer); clearInterval(active.holdTimer); } };
-    const startHold = () => {
-      stopHold();
-      if (!S().settings.holdToPat) return;
-      active.holdTimer = setTimeout(() => {
-        if (!active) return;
-        active.holdTimer = setInterval(() => {
-          if (!active) return;
-          active.lastPat = performance.now();
-          pat({ x: active.x, y: active.y }, "hold");
-        }, HOLD_EVERY);
-      }, HOLD_DELAY);
-    };
-    const end = e => {
-      if (!active || (e && e.pointerId !== active.id)) return;
-      stopHold();
-      active = null;
-      peng.classList.remove("patting", "rub-l", "rub-r");
-    };
-    peng.addEventListener("pointerdown", e => {
-      if (e.button !== 0 || active) return;
-      active = { id: e.pointerId, x: e.clientX, y: e.clientY, travel: 0, lastPat: performance.now(), holdTimer: 0 };
-      try { peng.setPointerCapture(e.pointerId); } catch (_) { /* not supported */ }
-      peng.classList.add("patting");
-      pat({ x: e.clientX, y: e.clientY }, "tap");
-      startHold();
-    });
-    peng.addEventListener("pointermove", e => {
-      if (!active || e.pointerId !== active.id) return;
-      const dx = e.clientX - active.x;
-      active.travel += Math.hypot(dx, e.clientY - active.y);
-      active.x = e.clientX; active.y = e.clientY;
-      if (Math.abs(dx) > 2) {
-        peng.classList.toggle("rub-r", dx > 0);
-        peng.classList.toggle("rub-l", dx < 0);
-      }
-      if (active.travel < STROKE_PX) return;
-      startHold();
-      const t = performance.now();
-      if (t - active.lastPat < STROKE_GAP) return;
-      active.travel = 0;
-      active.lastPat = t;
-      if (!peng.classList.contains("rub-l") && !peng.classList.contains("rub-r")) peng.classList.add("rub-r");
-      pat({ x: e.clientX, y: e.clientY }, "rub");
-    });
-    ["pointerup", "pointercancel", "lostpointercapture"].forEach(ev => peng.addEventListener(ev, end));
-    peng.addEventListener("click", e => { if (e.detail === 0) pat(pointFrom(e, peng), "tap"); });
-  }
+  // ---------- Moved to src/ui/patting.js: patting the big penguin: taps, rubs and hold-to-pat ----------
+  function wirePatting(...args) { return PI.uiPatting.wirePatting(...args); }
 
   function init() {
     const P = panels(), A = activities(), M_UI = memoriesUI(), S_SC = scene();

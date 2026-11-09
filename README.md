@@ -84,7 +84,9 @@ src/engine/
   save.js                 save/load persistence, migrations, export/import and validation
   helpers.js              automated helper AI (Pip, Barnaby, Marina) and decision logic
 src/ui/
-  ui.js                   root coordinator, tabs, top bar, fish counter, patting and event wiring
+  ui.js                   root coordinator, tabs, badges, fish counter, frame tick and event wiring
+  topbar.js               top bar extras: news dot, letter reset, next goal, warmth, buffs and season badge
+  patting.js              patting the big penguin: taps, rubs and hold-to-pat
   panels.js               colony store, upgrades, workshop research, shores, helpers, letters and wardrobe
   activities.js           heirloom tree, campfire kettle, diving and relics
   dialogs.js              modals, toasts, tooltips and the touch info sheet
