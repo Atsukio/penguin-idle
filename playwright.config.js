@@ -11,6 +11,8 @@ module.exports = defineConfig({
   fullyParallel: true,
   workers: process.env.PW_WORKERS ? Number(process.env.PW_WORKERS) : process.env.CI ? undefined : 2,
   retries: process.env.CI ? 1 : 0,
+  // A broken build fails every test (twice, with the retry); stop early instead of burning minutes.
+  maxFailures: process.env.CI ? 5 : 0,
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: { baseURL: "http://localhost:4173", trace: "retain-on-failure" },
   webServer: { command: "node tools/serve.js 4173", url: "http://localhost:4173", reuseExistingServer: !process.env.CI },

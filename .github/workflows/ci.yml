@@ -3,7 +3,9 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore: ["**.md", "LICENSE"]
   pull_request:
+    paths-ignore: ["**.md", "LICENSE"]
 
 permissions:
   contents: read
@@ -13,7 +15,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
+  # Fast node checks: no npm install needed, so they report in seconds.
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Data integrity
+        run: npm run check
+
+      - name: Balance (72 simulated hours)
+        run: npm run balance
+
+  # Browser tests run alongside the checks instead of after them.
+  browser:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -27,19 +47,13 @@ jobs:
       - name: Install test tools
         run: npm ci
 
-      - name: Data integrity
-        run: npm run check
-
-      - name: Balance (72 simulated hours)
-        run: npm run balance
-
       - name: Get Playwright version
         id: playwright-version
         run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
 
-      - name: Cache Playwright browsers
+      - name: Restore Playwright browsers
         id: playwright-cache
-        uses: actions/cache@v6
+        uses: actions/cache/restore@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}-chromium
@@ -51,6 +65,14 @@ jobs:
       - name: Install Playwright system dependencies
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
+
+      # Saved straight after install, so failing tests still leave a warm cache.
+      - name: Save Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.playwright-cache.outputs.cache-primary-key }}
 
       - name: Browser tests
         run: npm test
