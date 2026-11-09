@@ -89,7 +89,9 @@ src/ui/
   patting.js              patting the big penguin: taps, rubs and hold-to-pat
   panels.js               colony store, upgrades and workshop research
   community.js            migration, shores, passport stamps, helpers, letters and wardrobe
-  activities.js           heirloom tree, campfire kettle, diving and relics
+  activities.js           campfire kettle
+  tree.js                 heirloom tree: nodes, inspector and connecting lines
+  diving.js               ice hole, diving expeditions and the relic shelf
   dialogs.js              modals, toasts, tooltips and the touch info sheet
   memories.js             101 memories, statistics, SVG graph and nap stars
 src/scene/
