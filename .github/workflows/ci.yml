@@ -29,6 +29,9 @@ jobs:
       - name: Data integrity
         run: npm run check
 
+      - name: Engine tests
+        run: npm run test:engine
+
       - name: Balance (72 simulated hours)
         run: npm run balance
 
