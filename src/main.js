@@ -443,7 +443,7 @@
     // Golden fish don't swim past a sleeping colony; after a proper nap one waits to say good morning
     const golden = slept >= GOLDEN_WAITS && !E.M.noGolden, rush = golden && slept >= 3600;
     if (golden) { ui().spawnGolden(rush ? "rush" : null); nextGolden = Date.now() + E.goldenDelay(); }
-    const NAMES = { lucky: "Lucky Catch", rush: "Cocoa Rush", flurry: "Flipper Flurry", aurora: "Aurora Blessing" };
+    const NAMES = { lucky: "Lucky Catch", rush: "Cocoa Rush", flurry: "Flipper Flurry", aurora: "Aurora Blessing", rainbow: "Rainbow Frenzy", glacier: "Glacier Freeze", feathered: "Moult Bounty" };
     const kept = [];
     for (let i = 0; i < saved; i++) kept.push(NAMES[E.goldenEffect({}, true, null, true)]);
     if (slept >= 30 && (caught > 0 || golden || saved)) {

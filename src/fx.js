@@ -648,8 +648,22 @@
       restartClass(document.querySelector(`#tree [data-id="${d.n.id}"]`), "pop");
     });
     bus.on("hireHelper", d => feedback("medium", d.origin, { sound: "fanfare", chars: [d.h.icon, "✨", "💛"] }));
+    bus.on("passportStamp", d => feedback("large", null, { sound: "fanfare", chars: ["🛂", "✨", (d.stamp && d.stamp.icon) || "🏔️", "🌟"] }));
+    bus.on("dishCooked", d => feedback("medium", d.origin, { sound: "fanfare", chars: [d.recipe ? d.recipe.icon : "🍲", "♨️", "✨", "🔥"] }));
+    bus.on("diveStarted", d => feedback("medium", null, { sound: "pop", chars: ["🤿", "🫧", "🌊", "✨"] }));
+    bus.on("diveReady", d => feedback("small", null, { sound: "sparkle", chars: ["🎁", "✨", "🫧"] }));
+    bus.on("relicFound", d => feedback("large", null, { sound: "fanfare", chars: [d.relic ? d.relic.icon : "🎁", "✨", "🫧", "🌊", "⭐"] }));
     bus.on("respec", () => Sound.play("chime"));
-    bus.on("golden", d => { if (!d.auto) feedback("large", d, { sound: "fanfare", chars: ["🐟", "✨", "💛", "⭐"] }); else Sound.play("sparkle"); });
+    bus.on("golden", d => {
+      const v = d.variant || "golden";
+      const chars = v === "rainbow" ? ["🐠", "🌈", "✨", "🫧", "💖"]
+                  : v === "glacier" ? ["❄️", "🧊", "💎", "✨", "🐟"]
+                  : v === "feathered" ? ["🪶", "✨", "💛", "⭐", "🌟"]
+                  : ["🐟", "✨", "💛", "⭐"];
+      const sound = v === "glacier" ? "chime" : "fanfare";
+      if (!d.auto) feedback("large", d, { sound, chars });
+      else Sound.play(v === "glacier" ? "chime" : "sparkle");
+    });
     bus.on("achievements", () => Sound.play("memory"));
     bus.on("migrate", () => feedback("large", { x: innerWidth / 2, y: innerHeight / 2 }, { sound: "migrate", chars: ["🐧", "❄️", "🪶"] }));
     bus.on("letterClaimed", d => feedback("medium", d.origin, { sound: "letter", chars: ["💌", "✨"] }));

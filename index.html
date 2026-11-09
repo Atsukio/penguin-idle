@@ -45,7 +45,12 @@
         <svg id="penguinSvg" viewBox="0 -10 200 230" width="200" height="230" aria-hidden="true"></svg>
       </button>
       <div class="say-bubble hidden" id="penguinSay" role="status" aria-live="polite"></div>
-      <div class="click-info">+<span id="clickPower">1</span> fish per pat</div>
+      <div class="click-info">
+        <span>+<span id="clickPower">1</span> fish per pat</span>
+        <span class="click-info-sep" aria-hidden="true">·</span>
+        <span class="pat-rate" id="patRate"><span id="patsPerSec">0</span> pats/s</span>
+      </div>
+      <div class="warmth" id="warmth" aria-hidden="true"><span class="warmth-fill" id="warmthFill"></span><span class="warmth-label" id="warmthLabel"></span></div>
       <div class="next-goal hidden" id="nextGoal" aria-live="off"></div>
       <div class="colony" id="colony" aria-hidden="true">
         <div class="lights" id="lights"></div>
@@ -57,11 +62,14 @@
         <div class="land land-front" id="landFront"></div>
         <div class="props" id="props"></div>
         <div class="work">
-          <span class="ice-hole hidden" id="iceHole"></span>
+          <span class="ice-hole hidden" id="iceHole" role="button" tabindex="0" title="Ice Hole: Deep-Sea Diving" aria-label="Ice Hole: Deep-Sea Diving"><span class="hole-diver hidden" id="holeDiver">🤿</span><span class="hole-chest hidden" id="holeChest">🎁</span></span>
           <span class="basket" id="fishBasket"><span class="pile" id="fishPile"></span><span class="basket-body">🧺</span></span>
         </div>
         <div class="decor-layer" id="sceneDecor"></div>
-        <div class="fire"><span class="glow"></span><span class="flame">🔥</span></div>
+        <div class="fire" id="colonyFire" title="Campfire &amp; Kettle" role="button" tabindex="0" aria-label="Campfire Kettle">
+          <span class="glow"></span><span class="flame">🔥</span>
+          <div class="kettle" id="sceneKettle"><span class="kettle-steam">♨️</span><span class="kettle-pot">🫖</span></div>
+        </div>
         <div class="waddlers" id="waddlers"></div>
         <div class="land land-over" id="landOver"></div>
         <span class="shore-pill" id="shorePill"></span>
@@ -113,6 +121,7 @@
           <p>Migrating now earns <b class="big"><span aria-hidden="true">🪶</span> <span id="pendingFeathers">0</span></b></p>
           <p class="muted" id="migrateHint"></p>
           <p class="muted">Next feather at <span id="nextFeather">0</span> lifetime fish caught.</p>
+          <p class="muted">Lifetime fish caught: <span id="migrateLifetimeFish">0</span></p>
           <button id="migrateBtn" class="btn primary">Migrate</button>
         </div>
 
@@ -120,6 +129,15 @@
         <p class="muted">Each migration lands on a shore with its own twist. Pick where you'd like to go next. More shores open as you migrate.</p>
         <p class="muted" id="shoreMemories"></p>
         <div id="shores" class="shore-list"></div>
+
+        <div class="passport-section">
+          <div class="section-head">
+            <h3>Shore Passport</h3>
+            <span class="passport-badge" id="passportCount">0 / 8 Stamps</span>
+          </div>
+          <p class="muted">Complete expeditions on each shore to earn permanent Passport Stamps (+1.5% production each, up to +12%).</p>
+          <div id="passportGrid" class="passport-grid"></div>
+        </div>
 
         <h2>Helpers</h2>
         <p class="muted">Penguins who do chores for you, hired once with feathers and yours forever. Switch any of them off whenever you like.</p>
@@ -147,6 +165,19 @@
         <p class="muted letter-reset" id="letterReset" aria-live="off"></p>
         <div id="letters" class="letter-list"></div>
         <div id="letterBonus" class="letter-bonus"></div>
+
+        <h2>Campfire Kettle</h2>
+        <p class="muted">Simmer hearty recipes over the colony campfire using fish caught by the colony. Each dish gives a cozy boost to fishing, patting, or offline rest.</p>
+        <div id="campfireKettleUI" class="kettle-section"></div>
+
+        <h2>The Ice Hole &amp; Deep-Sea Diving</h2>
+        <p class="muted">Send hardy penguin divers plunging through the ice hole into submerged kelp forests, sunken glacier caverns, and abyssal oceanic trenches to retrieve ancient oceanic relics.</p>
+        <div id="divingUI" class="diving-section"></div>
+
+        <h2>Relic Shelf</h2>
+        <p class="muted">Rare oceanic antiquities recovered from the deep. Each relic bestows a permanent colony boost, upgrading up to 3 stars as you find duplicates.</p>
+        <div id="relicShelfUI" class="relic-shelf"></div>
+
         <h2>Colony friends</h2>
         <p class="muted">Your residents come with cute names. Type your own, or tap 🎲 for another. They wear little name tags in the scene, and you'll hear about them in chats.</p>
         <div id="friendNames" class="friend-names"></div>

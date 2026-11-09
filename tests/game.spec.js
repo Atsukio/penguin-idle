@@ -35,6 +35,7 @@ test("patting earns fish and buys a Sleepy Chick", async ({ page }) => {
   // force: the penguin bobs continuously, so Playwright would otherwise wait forever for it to hold still
   for (let i = 0; i < 20; i++) await page.locator("#bigPenguin").click({ force: true });
   expect(await state(page, () => window.penguinIdle.state.stats.clicks)).toBe(20);
+  await expect(page.locator("#warmth")).toHaveClass(/on/);
   await page.locator("#buildings .building").first().click();
   expect(await state(page, () => window.penguinIdle.state.buildings.chick)).toBe(1);
   await expect(page.locator("#buildings .building").first().locator(".owned")).toHaveText("1");

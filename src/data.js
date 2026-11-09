@@ -436,8 +436,18 @@
       apply: (m, L, s) => { m.global *= 1 + 0.01 * L * Math.min(40, Math.floor(totalColony(s) / 25)); } },
     { id: "emperor", icon: "👑", name: "Emperor's Blessing", branch: "hearth", x: 1, y: 4, max: 5, cost: 100000, growth: 3, requires: ["family", "numbers"],
       text: L => `Each feather boosts production by ${2 + 0.5 * lvl(L)}% instead of 2%.`, apply: (m, L) => { m.featherPer = 0.02 + 0.005 * L; } },
+    { id: "cookbook", icon: "🥘", name: "Campfire Pantry", branch: "hearth", x: 0, y: 4, max: 3, cost: 50000, growth: 3, requires: ["memory"],
+      text: L => `Campfire recipes simmer ${10 * lvl(L)}% cheaper and last ${20 * lvl(L)}% longer.`,
+      apply: (m, L) => { m.cookingDurationMult = (m.cookingDurationMult || 1) * (1 + 0.2 * L); m.cookingCostMult = (m.cookingCostMult || 1) * (1 - 0.1 * L); } },
+    { id: "abundance", icon: "🫐", name: "Winter Abundance", branch: "hearth", x: 2, y: 4, max: 3, cost: 10000000, growth: 2.5, requires: ["numbers", "emperor"],
+      text: L => `All colony production +${15 * lvl(L)}%.`, apply: (m, L) => { m.global *= 1 + 0.15 * L; } },
+    { id: "banquet", icon: "🍯", name: "Grand Banquet", branch: "hearth", x: 0, y: 5, max: 1, cost: 5000000, growth: 1, requires: ["cookbook"],
+      text: () => "Campfire recipes grant +50% stronger effects.", apply: m => { m.cookingEffectMult = 1.5; } },
     { id: "eternal", icon: "💖", name: "Eternal Hearth", branch: "hearth", x: 1, y: 5, max: 1, cost: 5000000, growth: 1, requires: ["emperor"], capstone: true,
       text: () => "All production ×3.", apply: m => { m.global *= 3; } },
+    { id: "solar", icon: "☀️", name: "Solar Hearth", branch: "hearth", x: 1, y: 6, max: 1, cost: 20000000, growth: 1, requires: ["eternal"], capstone: true, tier2: true,
+      text: () => "All colony production ×4, member milestones give ×2.2 instead of ×2, and migrations earn +50% Emperor Feathers.",
+      apply: m => { m.global *= 4; m.milestoneMult = 2.2; m.featherGain *= 1.5; } },
 
     // Flipper: active patting
     { id: "flippers", icon: "👵", name: "Grandma's Mittens", branch: "flipper", x: 3, y: 1, max: 3, cost: 3, growth: 3, requires: ["spirit"],
@@ -448,8 +458,15 @@
       text: L => `+${2 * lvl(L)}% chance for any pat to be a Big Catch.`, apply: (m, L) => { m.critChance += 0.02 * L; } },
     { id: "embrace", icon: "🧡", name: "Warm Embrace", branch: "flipper", x: 3, y: 4, max: 5, cost: 50000, growth: 3, requires: ["luckyflip"],
       text: L => `Each pat also catches ${+(0.5 * lvl(L)).toFixed(1)}% more of your fish per second.`, apply: (m, L) => { m.clickFps += 0.005 * L; } },
+    { id: "kinetic", icon: "🦾", name: "Kinetic Flippers", branch: "flipper", x: 4, y: 4, max: 3, cost: 2000000, growth: 3, requires: ["embrace"],
+      text: L => `Chick helpers pat +${10 * lvl(L)} more times per second.`, apply: (m, L) => { m.autoRate += 10 * L; } },
+    { id: "flipper_frenzy", icon: "💥", name: "Flipping Rhythm", branch: "flipper", x: 2, y: 5, max: 3, cost: 5000000, growth: 3, requiresAny: ["abundance", "legend"],
+      text: L => `Big Catches yield +${50 * lvl(L)}% more fish.`, apply: (m, L) => { m.critMult *= 1 + 0.5 * L; } },
     { id: "legend", icon: "🏅", name: "Flipper Legend", branch: "flipper", x: 3, y: 5, max: 1, cost: 5000000, growth: 1, requires: ["embrace"], capstone: true,
       text: () => "Pats ×10 and Big Catches ×2.", apply: m => { m.click *= 10; m.critMult *= 2; } },
+    { id: "mythic", icon: "🌪️", name: "Mythic Whirlwind", branch: "flipper", x: 3, y: 6, max: 1, cost: 20000000, growth: 1, requires: ["legend"], capstone: true, tier2: true,
+      text: () => "Pats ×5, Warmth meter pat boost +20%, and Chick helpers pat +25 times a second.",
+      apply: m => { m.click *= 5; m.warmthBonusExtra = (m.warmthBonusExtra || 0) + 0.20; m.autoRate += 25; } },
 
     // Wanderer: golden fish and time away
     { id: "offline1", icon: "💭", name: "Sweet Dreams", branch: "wanderer", x: 5, y: 1, max: 1, cost: 10, growth: 1, requires: ["spirit"],
@@ -468,8 +485,16 @@
       text: L => `Cocoa Rush gives ×${7 + lvl(L)} instead of ×7.`, apply: (m, L) => { m.rushMult += L; } },
     { id: "finder", icon: "🔍", name: "Feather Finder", branch: "wanderer", x: 5, y: 4, max: 5, cost: 100000, growth: 3, requiresAny: ["treasure", "dreams", "rush"],
       text: L => `Migrations earn ${10 * lvl(L)}% more feathers.`, apply: (m, L) => { m.featherGain *= 1 + 0.1 * L; } },
-    { id: "wanderer", icon: "🎇", name: "Aurora Wanderer", branch: "wanderer", x: 5, y: 5, max: 1, cost: 10000000, growth: 1, requires: ["finder"], capstone: true,
+    { id: "prism_heirloom", icon: "🎨", name: "Prismatic Shimmer", branch: "wanderer", x: 6, y: 4, max: 3, cost: 2000000, growth: 3, requires: ["rush"],
+      text: L => `Exotic golden fish appear +${25 * lvl(L)}% more often.`, apply: (m, L) => { m.exoticChanceBonus = (m.exoticChanceBonus || 0) + 0.08 * L; } },
+    { id: "currents", icon: "🫧", name: "Abyssal Currents", branch: "wanderer", x: 6, y: 5, max: 2, cost: 5000000, growth: 3, requires: ["prism_heirloom"],
+      text: L => `Deep-sea diving expeditions complete ${25 * lvl(L)}% faster.`,
+      apply: (m, L) => { m.diveDurationMult = (m.diveDurationMult || 1) * (1 - 0.25 * L); } },
+    { id: "wanderer", icon: "🎇", name: "Aurora Wanderer", branch: "wanderer", x: 5, y: 5, max: 1, cost: 8000000, growth: 1, requires: ["finder"], capstone: true,
       text: () => "Golden fish can bring an Aurora Blessing: production ×50 for 30 seconds.", apply: m => { m.aurora = true; } },
+    { id: "infinite", icon: "⭐", name: "Infinite Horizon", branch: "wanderer", x: 5, y: 6, max: 1, cost: 35000000, growth: 1, requires: ["wanderer"], capstone: true, tier2: true,
+      text: () => "Golden fish appear twice as often and migrations earn +100% Emperor Feathers.",
+      apply: m => { m.goldenFreq *= 2; m.featherGain *= 2; } },
   ];
   const H_BY_ID = Object.fromEntries(TREE.map(n => [n.id, n]));
   const BRANCH_NAMES = { root: "Root", hearth: "🏕️ Hearth", flipper: "🧤 Flipper", wanderer: "🌙 Wanderer" };
@@ -515,17 +540,42 @@
   // ---------- Helpers: permanent automation bought with feathers (switch each on or off) ----------
   const HELPERS = [
     { id: "shopkeeper", icon: "🛒", name: "Shopkeeper Pip",  cost: 15,  every: 1,
-      desc: "Buys upgrades for you as soon as you can afford them, cheapest first." },
+      desc: "Buys upgrades for you according to your chosen strategy." },
     { id: "foreman",    icon: "👷", name: "Foreman Waddles", cost: 40,  every: 1,
-      desc: "Buys colony members for you: the best value you can afford, saving up when a better one is nearly in reach." },
+      desc: "Buys colony members for you according to your chosen strategy." },
     { id: "tinker",     icon: "🔨", name: "Tinker Bo",       cost: 200,  every: 2,
       desc: "Levels up Workshop research for you, cheapest first." },
     { id: "lookout",    icon: "📯", name: "Lookout Lumi",    cost: 500, every: 1,
       desc: "Catches golden fish for you a few seconds after they appear." },
     { id: "planner",    icon: "🗓️", name: "Planner Pem",     cost: 2000, every: 5,
       desc: "Sets off on the Great Migration once it would at least double your feathers, heading for the shore you've picked." },
+    { id: "diver",      icon: "🥽", name: "Diver Marina",    cost: 100,  every: 2,
+      desc: "Automatically claims retrieved dive relics and plunges right back into underwater expeditions." },
   ];
   const HELPER_BY_ID = Object.fromEntries(HELPERS.map(h => [h.id, h]));
+
+  const SHOPKEEPER_STRATEGIES = [
+    { id: "impact",     label: "Impact",     icon: "💥", desc: "Prioritizes whichever upgrade makes the biggest difference to production." },
+    { id: "efficiency", label: "Efficiency", icon: "🎯", desc: "Best bang for your buck: prioritizes upgrades with the fastest payback." },
+    { id: "cheapest",   label: "Cheapest",   icon: "🪙", desc: "Buys upgrades as soon as you can afford them, cheapest first." },
+  ];
+  const SHOPKEEPER_STRATEGY_BY_ID = Object.fromEntries(SHOPKEEPER_STRATEGIES.map(s => [s.id, s]));
+
+  const FOREMAN_STRATEGIES = [
+    { id: "impact",     label: "Impact",     icon: "💥", desc: "Prioritizes whichever member makes the biggest difference to production." },
+    { id: "efficiency", label: "Efficiency", icon: "🎯", desc: "Best bang for your buck: prioritizes members with the fastest payback." },
+    { id: "cheapest",   label: "Cheapest",   icon: "🪙", desc: "Buys the cheapest affordable members to sweep up milestone bonuses." },
+  ];
+  const FOREMAN_STRATEGY_BY_ID = Object.fromEntries(FOREMAN_STRATEGIES.map(s => [s.id, s]));
+
+  const DIVER_STRATEGIES = [
+    { id: "hunter",   label: "Relic Hunter", icon: "🧭", desc: "Prioritizes dive spots containing relics you haven't maxed out yet." },
+    { id: "deepest",  label: "Deepest",      icon: "🌊", desc: "Always dives into your deepest unlocked ocean spot." },
+    { id: "shallow",  label: "Kelp Forest",  icon: "🌿", desc: "Dives the 10-minute Shallow Kelp Forest for frequent runs." },
+    { id: "cavern",   label: "Glacier Cave", icon: "🧊", desc: "Dives the 45-minute Sunken Glacier Cavern." },
+    { id: "abyss",    label: "Abyssal Trench", icon: "👑", desc: "Dives the 3-hour Abyssal Trench." },
+  ];
+  const DIVER_STRATEGY_BY_ID = Object.fromEntries(DIVER_STRATEGIES.map(s => [s.id, s]));
 
   // ---------- Shores: where each migration lands. Each gives the run a twist. ----------
   // unlockAt = migrations completed. mods are folded into the modifier object while you live there.
@@ -540,6 +590,262 @@
     { id: "rookery",      icon: "👴", name: "Elders' Rookery", unlockAt: 6, desc: "Workshop research costs half as much, but production ×0.8.", mods: { researchCost: 0.5, global: 0.8 } },
   ];
   const SHORE_BY_ID = Object.fromEntries(SHORES.map(s => [s.id, s]));
+
+  // ---------- Shore Passport Stamps: permanent milestone expeditions per shore ----------
+  const PASSPORT_STAMPS = [
+    {
+      id: "home",
+      shoreId: "home",
+      name: "Hearth Tender",
+      icon: "🏔️",
+      stampIcon: "🔥",
+      desc: "Gather 50 colony members while living on Home Ice.",
+      target: 50,
+      rewardDesc: "+1.5% production & +5% warmth pat power",
+    },
+    {
+      id: "krillbay",
+      shoreId: "krillbay",
+      name: "Bountiful Swarm",
+      icon: "🏖️",
+      stampIcon: "🦐",
+      desc: "Harvest 75 Krill Gardens while living on Krill Bay.",
+      target: 75,
+      rewardDesc: "+1.5% production & Krill Gardens +10%",
+    },
+    {
+      id: "sunnycove",
+      shoreId: "sunnycove",
+      name: "Sun Seeker",
+      icon: "☀️",
+      stampIcon: "✨",
+      desc: "Catch 5 golden or exotic fish while living on Sunny Cove.",
+      target: 5,
+      rewardDesc: "+1.5% production & golden fish effects +10% duration",
+    },
+    {
+      id: "blizzard",
+      shoreId: "blizzard",
+      name: "Storm Veteran",
+      icon: "🌨️",
+      stampIcon: "❄️",
+      desc: "Migrate from Blizzard Pass earning at least 15 Emperor Feathers.",
+      target: 15,
+      rewardDesc: "+1.5% production & +5% feather gain",
+    },
+    {
+      id: "aurorafields",
+      shoreId: "aurorafields",
+      name: "Sky Gazer",
+      icon: "🌠",
+      stampIcon: "🌌",
+      desc: "Own 50 Aurora Observatories while living on Aurora Fields.",
+      target: 50,
+      rewardDesc: "+1.5% production & Observatories +10%",
+    },
+    {
+      id: "quiethollow",
+      shoreId: "quiethollow",
+      name: "Restful Sleeper",
+      icon: "🌲",
+      stampIcon: "💤",
+      desc: "Rest or nap for at least 10 minutes while living on Quiet Hollow.",
+      target: 600,
+      time: true,
+      rewardDesc: "+1.5% production & napping +5% faster",
+    },
+    {
+      id: "harbour",
+      shoreId: "harbour",
+      name: "Harbour Merchant",
+      icon: "🏙️",
+      stampIcon: "⚓",
+      desc: "Gather 300 total colony members while living on Busy Harbour.",
+      target: 300,
+      rewardDesc: "+1.5% production & colony members 3% cheaper",
+    },
+    {
+      id: "rookery",
+      shoreId: "rookery",
+      name: "Ancient Scholar",
+      icon: "👴",
+      stampIcon: "📜",
+      desc: "Research 20 total Workshop levels while living on Elders' Rookery.",
+      target: 20,
+      rewardDesc: "+1.5% production & Workshop research 5% cheaper",
+    },
+  ];
+  const PASSPORT_STAMP_BY_ID = Object.fromEntries(PASSPORT_STAMPS.map(s => [s.id, s]));
+
+  // ---------- Campfire Cooking: cozy recipes simmered over the hearth ----------
+  const COOKING_RECIPES = [
+    {
+      id: "cocoa",
+      name: "Hot Spiced Cocoa",
+      icon: "☕",
+      desc: "Rich cocoa with cinnamon and fluffy mini marshmallows.",
+      flavor: "Warms flippers to the core on brisk mornings.",
+      duration: 30 * 60, // 30 minutes
+      costMins: 5,
+      minCost: 500,
+      unlockLifetime: 0,
+      effectDesc: "Pats +50%, Warmth charges 2× faster, and golden fish appear +25% more often.",
+      mods: { click: 1.5, goldenFreq: 1.25, warmthRate: 2 },
+    },
+    {
+      id: "chowder",
+      name: "Hearty Krill Chowder",
+      icon: "🍲",
+      desc: "Creamy, steaming chowder packed with tender krill and sea potatoes.",
+      flavor: "A hearty bowl keeps every colony fisher working with high spirits.",
+      duration: 45 * 60, // 45 minutes
+      costMins: 10,
+      minCost: 2500,
+      unlockLifetime: 2500,
+      effectDesc: "All colony member production +25%.",
+      mods: { global: 1.25 },
+    },
+    {
+      id: "minttea",
+      name: "Glacier Mint Tea",
+      icon: "🫖",
+      desc: "Crisp, fragrant infusion brewed from wild polar mint leaves.",
+      flavor: "Clears the senses and brings good fortune on the ice.",
+      duration: 60 * 60, // 60 minutes
+      costMins: 15,
+      minCost: 10000,
+      unlockLifetime: 10000,
+      effectDesc: "Big Catch chance +5% and Lucky Catches +50% fish.",
+      mods: { critChance: 0.05, luckyMult: 1.5 },
+    },
+    {
+      id: "porridge",
+      name: "Honeyed Berry Porridge",
+      icon: "🍯",
+      desc: "Slow-simmered oats drizzled with amber honey and tart tundra berries.",
+      flavor: "Sweet, warm, and filling. Everyone gathers for breakfast.",
+      duration: 90 * 60, // 90 minutes
+      costMins: 20,
+      minCost: 50000,
+      unlockLifetime: 50000,
+      effectDesc: "Colony members and upgrades cost 10% less.",
+      mods: { costMult: 0.9, upgradeCost: 0.9 },
+    },
+    {
+      id: "nightcap",
+      name: "Glacier Nightcap",
+      icon: "🌌",
+      desc: "Soothing lavender and chamomile infusion poured into warm wooden mugs.",
+      flavor: "The perfect bedtime brew for dreaming under polar stars.",
+      duration: 8 * 3600, // 8 hours
+      costMins: 30,
+      minCost: 150000,
+      unlockLifetime: 150000,
+      effectDesc: "Napping and offline fishing +35% faster.",
+      mods: { offline: 1.35, napMult: 0.35 },
+    },
+  ];
+  const COOKING_RECIPE_BY_ID = Object.fromEntries(COOKING_RECIPES.map(r => [r.id, r]));
+
+  // ---------- The Ice Hole & Deep-Sea Diving ----------
+  const DIVE_SPOTS = [
+    {
+      id: "shallow",
+      name: "Shallow Kelp Forest",
+      icon: "🌿",
+      duration: 10 * 60, // 10 minutes
+      unlockLifetime: 0,
+      desc: "Sunlit emerald kelp swaying in gentle swells. Great for finding shells and antique nautical curios.",
+      relics: ["spiral", "coral", "anchor"],
+    },
+    {
+      id: "cavern",
+      name: "Sunken Glacier Cavern",
+      icon: "🧊",
+      duration: 45 * 60, // 45 minutes
+      unlockLifetime: 100000,
+      desc: "A crystal-blue underwater labyrinth beneath the ice shelf. Home to ancient pearls and deep-sea chimes.",
+      relics: ["geode", "whistle", "pearl", "sextant"],
+    },
+    {
+      id: "abyss",
+      name: "Abyssal Trench",
+      icon: "🌊",
+      duration: 3 * 3600, // 3 hours
+      unlockLifetime: 5000000,
+      desc: "The pitch-black depths of the Antarctic ocean where rare oceanic diadems and ancient treasures rest.",
+      relics: ["diadem", "pearl", "geode", "sextant"],
+    },
+  ];
+  const DIVE_SPOT_BY_ID = Object.fromEntries(DIVE_SPOTS.map(d => [d.id, d]));
+
+  const RELICS = [
+    {
+      id: "spiral",
+      name: "Nautilus Spiral",
+      icon: "🐚",
+      desc: "A fossilized shell with iridescent golden spirals.",
+      effect: "Each pat also catches +0.5% more fish per second.",
+      mods: { clickFps: 0.005 },
+    },
+    {
+      id: "coral",
+      name: "Luminescent Coral",
+      icon: "🪸",
+      desc: "Living cyan coral that softly glows in the dark.",
+      effect: "Golden and exotic fish effects last +10% longer.",
+      mods: { goldenDur: 1.1 },
+    },
+    {
+      id: "pearl",
+      name: "Glacier Pearl",
+      icon: "🦪",
+      desc: "A luminous pearl polished by millennial ocean currents.",
+      effect: "All colony production +3%.",
+      mods: { global: 1.03 },
+    },
+    {
+      id: "sextant",
+      name: "Navigator's Sextant",
+      icon: "🧭",
+      desc: "An antique brass instrument once used to navigate polar waters.",
+      effect: "Migrations earn +5% more Emperor Feathers.",
+      mods: { featherGain: 1.05 },
+    },
+    {
+      id: "anchor",
+      name: "Barnacled Anchor",
+      icon: "⚓",
+      desc: "A pocket-sized bronze anchor covered in friendly sea moss.",
+      effect: "Colony members cost 5% less fish.",
+      mods: { costMult: 0.95 },
+    },
+    {
+      id: "geode",
+      name: "Amethyst Geode",
+      icon: "💎",
+      desc: "A cracked deep-sea stone lined with sparkling purple ice crystals.",
+      effect: "Big Catch pats yield 2× more fish.",
+      mods: { critMult: 2 },
+    },
+    {
+      id: "whistle",
+      name: "Triton's Whistle",
+      icon: "🔱",
+      desc: "Whittled driftwood that produces an ethereal underwater chime.",
+      effect: "Colony warmth meter grants an extra +5% pat boost.",
+      mods: { warmthBonusExtra: 0.05 },
+    },
+    {
+      id: "diadem",
+      name: "Sea King's Diadem",
+      icon: "👑",
+      desc: "A delicate crown woven from mother-of-pearl and golden kelp.",
+      effect: "All colony production +5%.",
+      mods: { global: 1.05 },
+    },
+  ];
+  const RELIC_BY_ID = Object.fromEntries(RELICS.map(r => [r.id, r]));
 
   // ---------- Seasonal events, by real date (Antarctic seasons: midwinter is in June) ----------
   const SEASONS = [
@@ -571,6 +877,10 @@
       { id: "sunhat",    name: "Sun Hat",          emoji: "👒", ...seasonal("sunlit") },
       { id: "sleepmask", name: "Sleep Mask",       mask: ["#b9a6e8", "#6f58a8", "#efe7ff"], need: s => s.napStreak.best >= 7, unlockText: "Nap on 7 days in a row" },
       { id: "nightcap",  name: "Nightcap",         beanie: ["#3b4a8a", "#f6e7b0", "#2c3970"], need: s => s.achievements.includes("nap_hour"), unlockText: "Nap for an hour" },
+      { id: "expedition", name: "Explorer Cap",    emoji: "🧭", need: s => (s.shoreStamps || []).length >= 4, unlockText: "Collect 4 Shore Passport Stamps" },
+      { id: "chef",      name: "Chef's Toque",     emoji: "🧑‍🍳", need: s => (s.stats.dishesCooked || 0) >= 5, unlockText: "Cook 5 campfire meals" },
+      { id: "snorkel",   name: "Diving Mask & Snorkel", emoji: "🤿", need: s => (s.stats.divesCompleted || 0) >= 3, unlockText: "Complete 3 deep-sea dives" },
+      { id: "celestial", name: "Celestial Crown",  emoji: "🌌", need: s => ["solar", "mythic", "infinite"].some(id => (s.heritage[id] || 0) > 0), unlockText: "Learn a Tier-2 capstone heirloom" },
     ],
     scarf: [
       { id: "coral",    name: "Coral Scarf",       colors: ["#e8735a", "#f6d7b0"], need: () => true, unlockText: "Always yours" },
@@ -582,13 +892,16 @@
       { id: "party",    name: "Penguin Day Scarf", colors: ["#3d6fb6", "#ffffff"], ...seasonal("worldpenguin") },
     ],
     item: [
-      { id: "none",    name: "Nothing",       emoji: "",   need: () => true, unlockText: "Always yours" },
-      { id: "mug",     name: "Cocoa Mug",     emoji: "☕", need: () => true, unlockText: "Always yours" },
-      { id: "rod",     name: "Fishing Rod",   emoji: "🎣", need: s => s.buildings.fisher >= 50 || s.achievements.includes("b_fisher_50"), unlockText: "Own 50 Scarf-Wrapped Fishers" },
-      { id: "lantern", name: "Paper Lantern", emoji: "🏮", need: s => s.achievements.includes("b_trawler_1"), unlockText: "Own a Lantern Boat" },
-      { id: "balloon", name: "Balloon",       emoji: "🎈", need: s => s.achievements.includes("b_rocket_1"), unlockText: "Own a Hot-Air Balloon" },
-      { id: "book",    name: "Storybook",     emoji: "📖", need: s => s.stats.lettersClaimed >= 10, unlockText: "Answer 10 penguin letters" },
-      { id: "rosette", name: "Rosette",       emoji: "🏵️", ...seasonal("awareness") },
+      { id: "none",     name: "Nothing",         emoji: "",   need: () => true, unlockText: "Always yours" },
+      { id: "mug",      name: "Cocoa Mug",       emoji: "☕", need: () => true, unlockText: "Always yours" },
+      { id: "rod",      name: "Fishing Rod",     emoji: "🎣", need: s => s.buildings.fisher >= 50 || s.achievements.includes("b_fisher_50"), unlockText: "Own 50 Scarf-Wrapped Fishers" },
+      { id: "lantern",  name: "Paper Lantern",   emoji: "🏮", need: s => s.achievements.includes("b_trawler_1"), unlockText: "Own a Lantern Boat" },
+      { id: "balloon",  name: "Balloon",         emoji: "🎈", need: s => s.achievements.includes("b_rocket_1"), unlockText: "Own a Hot-Air Balloon" },
+      { id: "book",     name: "Storybook",       emoji: "📖", need: s => s.stats.lettersClaimed >= 10, unlockText: "Answer 10 penguin letters" },
+      { id: "rosette",  name: "Rosette",         emoji: "🏵️", ...seasonal("awareness") },
+      { id: "passport", name: "Colony Passport", emoji: "🛂", need: s => (s.shoreStamps || []).length >= 8, unlockText: "Collect all 8 Shore Passport Stamps" },
+      { id: "bowl",     name: "Wooden Bowl & Spoon", emoji: "🥣", need: s => (s.stats.dishesCooked || 0) >= 15, unlockText: "Cook 15 campfire meals" },
+      { id: "shell",    name: "Giant Nautilus Shell", emoji: "🐚", need: s => Object.keys(s.relics || {}).length >= 5, unlockText: "Collect 5 deep-sea relics" },
     ],
   };
   const COSMETIC_SLOTS = { hat: "Hat", scarf: "Scarf", item: "Holding" };
@@ -637,6 +950,14 @@
   ach("moonlit", "Moonlit Sky", "Nap for 24 hours in total and fill the sky with nap stars.", s => s.stats.napSeconds >= 24 * 3600, "🎑", "", s => [s.stats.napSeconds, 24 * 3600, "time"]);
   ach("nap_day", "Hibernation Champion", "Let the colony nap for 8 hours in total.", s => s.stats.napSeconds >= 8 * 3600, "🛌", "", s => [s.stats.napSeconds, 8 * 3600, "time"]);
   ach("rub_5000", "Belly Rub Expert", "Pat the penguin 5,000 times by rubbing it.", s => s.stats.rubPats >= 5000, "💆", "", s => [s.stats.rubPats, 5000]);
+  ach("stamp_1", "First Stamp", "Collect your first Shore Passport Stamp.", s => (s.shoreStamps || []).length >= 1, "🎫");
+  ach("stamp_all", "Grand Voyager", "Collect all 8 Shore Passport Stamps.", s => (s.shoreStamps || []).length >= 8, "🛂", "", s => [(s.shoreStamps || []).length, 8]);
+  ach("cook_1", "Campfire Cook", "Simmer your first meal in the Campfire Kettle.", s => (s.stats.dishesCooked || 0) >= 1, "🍳");
+  ach("cook_15", "Master of the Stew", "Cook 15 meals for the colony.", s => (s.stats.dishesCooked || 0) >= 15, "🥘", "", s => [(s.stats.dishesCooked || 0), 15]);
+  ach("dive_1", "Plunge into the Deep", "Complete your first deep-sea dive.", s => (s.stats.divesCompleted || 0) >= 1, "🦪");
+  ach("relic_all", "Ocean Antiquarian", "Collect every unique relic for the Relic Shelf.", s => RELICS.every(r => (s.relics && s.relics[r.id])), "🪸", "", s => [Object.keys(s.relics || {}).length, RELICS.length]);
+  ach("tree_tier2", "Pinnacle of Wisdom", "Learn a Tier-2 capstone heirloom.", s => ["solar", "mythic", "infinite"].some(id => (s.heritage[id] || 0) > 0), "🏛️");
+  ach("tree_cap6", "Heir of the Colony", "Learn all 6 capstone heirlooms.", s => TREE.filter(n => n.capstone).every(n => (s.heritage[n.id] || 0) > 0), "⭐", "", s => [TREE.filter(n => n.capstone && (s.heritage[n.id] || 0) > 0).length, TREE.filter(n => n.capstone).length]);
 
   // "How do I get this one?" hints for memories that have no progress bar
   const ACH_HINTS = {
@@ -648,6 +969,14 @@
     season_1: "Seasonal events run on real dates (see the Wardrobe for the list). Catch a golden fish while one is on.",
     prop_look: "Hover (or tap) a colony member in the scene to see how it makes fish.",
     name_1: "In the Home tab, type a name for one of your residents (or tap 🎲).",
+    stamp_1: "Complete a shore challenge to earn your first Shore Passport Stamp.",
+    stamp_all: "Earn the passport stamp on all 8 shores across your journeys.",
+    cook_1: "In the Home tab, pick a recipe and simmer it in the Campfire Kettle.",
+    cook_15: "Cook 15 meals over the campfire across your migrations.",
+    dive_1: "Send a diver down the ice hole in the Home tab and retrieve your catch.",
+    relic_all: "Send divers into the deep waters to collect all 8 ancient relics for your shelf.",
+    tree_tier2: "Reach the very bottom of the Heirloom Tree and learn a Tier-2 capstone.",
+    tree_cap6: "Learn every capstone across the Hearth, Flipper, and Wanderer branches.",
   };
   ACHIEVEMENTS.forEach(a => { if (ACH_HINTS[a.id]) a.hint = ACH_HINTS[a.id]; });
 
@@ -658,7 +987,7 @@
     SAVE_KEY, SAVE_VERSION: 4, NAP_BONUS, BEDTIMES, NAP_STARS, CHANGELOG, GAME_VERSION, COST_GROWTH, MILESTONES, FEATHER_BONUS, ACH_BONUS, FEATHER_SCALE, SUFFIXES, TEXT_SIZES,
     BUILDINGS, B_BY_ID, TIER_REQS, TIER_COSTS, TIER_NUMERALS, BUILDING_UPGRADES,
     UPGRADES, UP_BY_ID, SYNERGIES, RESEARCH, R_BY_ID, TREE, H_BY_ID, BRANCH_NAMES, totalColony,
-    ACHIEVEMENTS, HELPERS, HELPER_BY_ID, SHORES, SHORE_BY_ID, SEASONS, SEASON_BY_ID,
+    ACHIEVEMENTS, HELPERS, HELPER_BY_ID, FOREMAN_STRATEGIES, FOREMAN_STRATEGY_BY_ID, SHOPKEEPER_STRATEGIES, SHOPKEEPER_STRATEGY_BY_ID, DIVER_STRATEGIES, DIVER_STRATEGY_BY_ID, SHORES, SHORE_BY_ID, PASSPORT_STAMPS, PASSPORT_STAMP_BY_ID, COOKING_RECIPES, COOKING_RECIPE_BY_ID, DIVE_SPOTS, DIVE_SPOT_BY_ID, RELICS, RELIC_BY_ID, SEASONS, SEASON_BY_ID,
     COSMETICS, COSMETIC_SLOTS, LETTER_SENDERS, LETTER_TYPES, CUTE_NAMES,
   };
 })(typeof globalThis !== "undefined" ? (globalThis.PI = globalThis.PI || {}) : (window.PI = window.PI || {}));

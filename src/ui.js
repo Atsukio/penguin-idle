@@ -413,6 +413,7 @@
     const pend = E.pendingFeathers();
     setText($("pendingFeathers"), fmt(pend));
     setText($("nextFeather"), fmt(E.nextFeatherAt()));
+    setText($("migrateLifetimeFish"), fmt(S().lifetimeFish));
     $("migrateBtn").disabled = pend < 1;
     const hint = pend < 1 ? (S().feathersEarned ? "Keep fishing: your next feather is on its way." : "Keep fishing: your first feather is on its way.")
       : migrateIsGood() ? "✨ Good time to migrate: this would at least double your feathers."
@@ -451,12 +452,13 @@
     const html = D.SHORES.map(sh => {
       const open = avail.includes(sh.id), here = S().shore === sh.id, next = S().nextShore === sh.id;
       const visited = S().shoresVisited.includes(sh.id);
+      const stamped = (S().shoreStamps || []).includes(sh.id);
       return `<button class="shore${here ? " here" : ""}${next ? " next" : ""}${open ? "" : " locked"}" data-id="${sh.id}"${open ? "" : " disabled"}
         aria-pressed="${next}" aria-label="${sh.name}: ${sh.desc}${here ? " You live here now." : ""}${next ? " Your next stop." : ""}${open ? "" : ` Unlocks after ${sh.unlockAt - 1} migrations.`}">
         <div class="sh-icon" aria-hidden="true">${open ? sh.icon : "🔒"}</div>
         <div><div class="name">${sh.name}</div>
         <div class="desc">${open ? sh.desc : `Unlocks after ${sh.unlockAt - 1} migration${sh.unlockAt - 1 === 1 ? "" : "s"}`}</div>
-        ${here || next || (visited && !here) ? `<div class="sh-tags">${here ? '<span class="tag">You\'re here</span>' : ""}${next ? '<span class="tag next">👣 Next stop</span>' : ""}${visited && !here ? '<span class="tag visited">Visited</span>' : ""}</div>` : ""}</div></button>`;
+        ${here || next || (visited && !here) || stamped ? `<div class="sh-tags">${here ? '<span class="tag">You\'re here</span>' : ""}${next ? '<span class="tag next">👣 Next stop</span>' : ""}${visited && !here ? '<span class="tag visited">Visited</span>' : ""}${stamped ? '<span class="tag stamped">🛂 Stamped</span>' : ""}</div>` : ""}</div></button>`;
     }).join("");
     // Progress toward the two shore memories, shown above the list
     setText($("shoreMemories"), ["shores_3", "shores_all"].map(id => D.ACHIEVEMENTS.find(a => a.id === id)).map(a => {
@@ -469,21 +471,147 @@
     }
   }
 
+  function renderPassport() {
+    const box = $("passportGrid");
+    if (!box) return;
+    const stamps = S().shoreStamps || [];
+    setText($("passportCount"), `${stamps.length} / ${D.PASSPORT_STAMPS.length} Stamps`);
+    const hereShore = S().shore;
+    const avail = E.availableShores().map(s => s.id);
+
+    const html = D.PASSPORT_STAMPS.map(stamp => {
+      const isStamped = stamps.includes(stamp.id);
+      const isHere = hereShore === stamp.id;
+      const sh = D.SHORE_BY_ID[stamp.shoreId];
+      const prog = E.passportProgress(stamp.id);
+      const unlocked = avail.includes(stamp.shoreId);
+
+      let statusHtml = "";
+      if (isStamped) {
+        const dateStr = S().shoreStampDates && S().shoreStampDates[stamp.id]
+          ? new Date(S().shoreStampDates[stamp.id]).toLocaleDateString() : "Stamped";
+        statusHtml = `
+          <div class="stamp-seal-wrap">
+            <span class="stamp-seal" aria-label="Stamped on ${dateStr}">
+              <span class="seal-icon">${stamp.stampIcon || "🛂"}</span> STAMPED
+            </span>
+            <span class="stamp-date">${dateStr}</span>
+          </div>`;
+      } else {
+        const curVal = prog.time ? fmtTime(prog.cur) : fmt(prog.cur);
+        const targetVal = prog.time ? fmtTime(prog.target) : fmt(prog.target);
+        const pct = Math.floor(prog.frac * 100);
+        const destLabel = S().migrations < 1 ? "Locked (needs 1 migration)"
+                        : isHere ? '<span class="stamp-live">Active Shore</span>'
+                        : (unlocked ? "Visit shore to stamp" : "Locked shore");
+        statusHtml = `
+          <div class="stamp-prog">
+            <div class="stamp-bar" aria-hidden="true"><div style="width:${pct}%"></div></div>
+            <div class="stamp-prog-foot">
+              <span>${curVal} / ${targetVal}</span>
+              <span class="stamp-dest">${destLabel}</span>
+            </div>
+          </div>`;
+      }
+
+      return `
+        <div class="stamp-card${isStamped ? " stamped" : ""}${isHere && !isStamped ? " current-shore" : ""}">
+          <div class="stamp-head">
+            <div class="stamp-shore-icon" aria-hidden="true">${stamp.icon}</div>
+            <div class="stamp-head-text">
+              <div class="stamp-title">${stamp.name}</div>
+              <div class="stamp-shore-name">${sh ? sh.name : stamp.shoreId}</div>
+            </div>
+          </div>
+          <p class="stamp-desc">${stamp.desc}</p>
+          <div class="stamp-reward"><b>Perk:</b> ${stamp.rewardDesc}</div>
+          <div class="stamp-foot">${statusHtml}</div>
+        </div>`;
+    }).join("");
+
+    setHTML(box, html);
+  }
+
   function renderHelpers() {
     const spend = E.spendableFeathers();
+    const curForemanStrat = E.foremanStrategy ? E.foremanStrategy() : (S().foremanStrategy || "impact");
+    const foremanStratObj = (D.FOREMAN_STRATEGY_BY_ID && D.FOREMAN_STRATEGY_BY_ID[curForemanStrat]) || (D.FOREMAN_STRATEGIES && D.FOREMAN_STRATEGIES[0]) || { desc: "" };
+
+    const curShopStrat = E.shopkeeperStrategy ? E.shopkeeperStrategy() : (S().shopkeeperStrategy || "impact");
+    const shopStratObj = (D.SHOPKEEPER_STRATEGY_BY_ID && D.SHOPKEEPER_STRATEGY_BY_ID[curShopStrat]) || (D.SHOPKEEPER_STRATEGIES && D.SHOPKEEPER_STRATEGIES[0]) || { desc: "" };
+
+    const curDiverStrat = E.diverStrategy ? E.diverStrategy() : (S().diverStrategy || "hunter");
+    const diverStratObj = (D.DIVER_STRATEGY_BY_ID && D.DIVER_STRATEGY_BY_ID[curDiverStrat]) || (D.DIVER_STRATEGIES && D.DIVER_STRATEGIES[0]) || { desc: "" };
+
     const html = D.HELPERS.map(h => {
       const hired = h.id in S().helpers, on = E.helperOn(h.id);
       const action = hired
         ? `<button class="btn small toggle${on ? " on" : ""}" data-toggle="${h.id}" aria-pressed="${on}">${on ? "On" : "Off"}</button>`
         : `<button class="btn small${spend >= h.cost ? " primary" : ""}" data-hire="${h.id}"${spend >= h.cost ? "" : " disabled"}>Hire · 🪶 ${fmt(h.cost)}</button>`;
+
+      let stratHtml = "";
+      if (h.id === "foreman" && hired && D.FOREMAN_STRATEGIES) {
+        stratHtml = `
+          <div class="strat-group" role="group" aria-label="Foreman buying strategy">
+            <div class="strat-pills">
+              ${D.FOREMAN_STRATEGIES.map(st => `
+                <button class="strat-pill${curForemanStrat === st.id ? " active" : ""}" data-foreman-strat="${st.id}" aria-pressed="${curForemanStrat === st.id}" title="${st.desc}">
+                  <span aria-hidden="true">${st.icon}</span> ${st.label}
+                </button>
+              `).join("")}
+            </div>
+            <div class="strat-desc">${foremanStratObj.desc}</div>
+          </div>`;
+      } else if (h.id === "shopkeeper" && hired && D.SHOPKEEPER_STRATEGIES) {
+        stratHtml = `
+          <div class="strat-group" role="group" aria-label="Shopkeeper buying strategy">
+            <div class="strat-pills">
+              ${D.SHOPKEEPER_STRATEGIES.map(st => `
+                <button class="strat-pill${curShopStrat === st.id ? " active" : ""}" data-shopkeeper-strat="${st.id}" aria-pressed="${curShopStrat === st.id}" title="${st.desc}">
+                  <span aria-hidden="true">${st.icon}</span> ${st.label}
+                </button>
+              `).join("")}
+            </div>
+            <div class="strat-desc">${shopStratObj.desc}</div>
+          </div>`;
+      } else if (h.id === "diver" && hired && D.DIVER_STRATEGIES) {
+        stratHtml = `
+          <div class="strat-group" role="group" aria-label="Diver expedition strategy">
+            <div class="strat-pills">
+              ${D.DIVER_STRATEGIES.map(st => `
+                <button class="strat-pill${curDiverStrat === st.id ? " active" : ""}" data-diver-strat="${st.id}" aria-pressed="${curDiverStrat === st.id}" title="${st.desc}">
+                  <span aria-hidden="true">${st.icon}</span> ${st.label}
+                </button>
+              `).join("")}
+            </div>
+            <div class="strat-desc">${diverStratObj.desc}</div>
+          </div>`;
+      }
+
       return `<div class="helper${hired ? " hired" : ""}${on ? " on" : ""}"><div class="hp-icon" aria-hidden="true">${h.icon}</div>
-        <div><div class="name">${h.name}</div><div class="desc">${h.desc}</div></div>${action}</div>`;
+        <div><div class="name">${h.name}</div><div class="desc">${h.desc}</div>${stratHtml}</div>${action}</div>`;
     }).join("");
+
     if (setHTML($("helpers"), html)) {
       $("helpers").querySelectorAll("[data-hire]").forEach(b => b.addEventListener("click", e => E.hireHelper(b.dataset.hire, pointFrom(e, b))));
       $("helpers").querySelectorAll("[data-toggle]").forEach(b => b.addEventListener("click", () => {
         E.toggleHelper(b.dataset.toggle);
         const nb = $("helpers").querySelector(`[data-toggle="${b.dataset.toggle}"]`);
+        if (nb) nb.focus({ preventScroll: true });
+      }));
+      $("helpers").querySelectorAll("[data-foreman-strat]").forEach(b => b.addEventListener("click", () => {
+        E.setForemanStrategy(b.dataset.foremanStrat);
+        const nb = $("helpers").querySelector(`[data-foreman-strat="${b.dataset.foremanStrat}"]`);
+        if (nb) nb.focus({ preventScroll: true });
+      }));
+      $("helpers").querySelectorAll("[data-shopkeeper-strat]").forEach(b => b.addEventListener("click", () => {
+        E.setShopkeeperStrategy(b.dataset.shopkeeperStrat);
+        const nb = $("helpers").querySelector(`[data-shopkeeper-strat="${b.dataset.shopkeeperStrat}"]`);
+        if (nb) nb.focus({ preventScroll: true });
+      }));
+      $("helpers").querySelectorAll("[data-diver-strat]").forEach(b => b.addEventListener("click", () => {
+        E.setDiverStrategy(b.dataset.diverStrat);
+        const nb = $("helpers").querySelector(`[data-diver-strat="${b.dataset.diverStrat}"]`);
         if (nb) nb.focus({ preventScroll: true });
       }));
     }
@@ -518,9 +646,9 @@
   function refreshTree() {
     $("tree").querySelectorAll(".node").forEach(el => {
       const n = D.H_BY_ID[el.dataset.id], L = E.nodeLevel(n.id), st = nodeState(n);
-      el.className = `node branch-${n.branch} state-${st}${L > 0 ? " learned" : ""}${n.capstone ? " capstone" : ""}${n.id === selectedNode ? " selected" : ""}`;
+      el.className = `node branch-${n.branch} state-${st}${L > 0 ? " learned" : ""}${n.capstone ? " capstone" : ""}${n.tier2 ? " tier2" : ""}${n.id === selectedNode ? " selected" : ""}`;
       setText(el.querySelector(".n-level"), n.max > 1 ? `${L}/${n.max}` : L ? "✔" : "");
-      el.setAttribute("aria-label", `${n.name}${n.capstone ? " (capstone)" : ""}, ${n.max > 1 ? `level ${L} of ${n.max}` : L ? "learned" : "not learned"}${st === "locked" ? ", locked" : st === "available" ? ", can learn" : ""}`);
+      el.setAttribute("aria-label", `${n.name}${n.capstone ? (n.tier2 ? " (tier-2 capstone)" : " (capstone)") : ""}, ${n.max > 1 ? `level ${L} of ${n.max}` : L ? "learned" : "not learned"}${st === "locked" ? ", locked" : st === "available" ? ", can learn" : ""}`);
       el.setAttribute("aria-current", n.id === selectedNode ? "true" : "false");
     });
     setText($("featherSpendable"), fmt(E.spendableFeathers()));
@@ -536,10 +664,11 @@
     const req = E.nodeReqsMet(n) ? "" : n.requiresAny ? `Needs any one of: ${names(n.requiresAny).join(", ")}` : `Needs: ${names(n.requires).join(" and ")}`;
     const canLearn = n.id !== "spirit" && !maxed && !req && E.spendableFeathers() >= cost;
     const label = n.id === "spirit" ? "Always yours" : maxed ? "✔ Fully learned" : `${L ? "Level up" : "Learn"} · 🪶 ${fmt(cost)}`;
+    const capHtml = n.capstone ? (n.tier2 ? ' <span class="cap tier2">Tier-2 Capstone</span>' : ' <span class="cap">Capstone</span>') : "";
     const html = `
       <div class="i-icon" aria-hidden="true">${n.icon}</div>
       <div class="i-body">
-        <div class="name">${n.name}${n.capstone ? ' <span class="cap">Capstone</span>' : ""}</div>
+        <div class="name">${n.name}${capHtml}</div>
         <div class="i-sub">${D.BRANCH_NAMES[n.branch]} · ${n.max > 1 ? `Level ${L}/${n.max}` : L ? "Learned" : "Not learned"}</div>
         ${L > 0 ? `<div><b>Now:</b> ${n.text(L)}</div>` : ""}
         ${!maxed ? `<div><b>${L ? "Next" : "Gives"}:</b> ${n.text(L + 1)}</div>` : ""}
@@ -625,6 +754,332 @@
         const nb = $("wardrobe").querySelector(`[data-slot="${b.dataset.slot}"][data-id="${b.dataset.id}"]`);
         if (nb) nb.focus({ preventScroll: true });
       }));
+    }
+  }
+
+  // ---------- Campfire Kettle ----------
+  function renderKettle() {
+    const box = $("campfireKettleUI");
+    if (!box) return;
+    const active = E.activeDish ? E.activeDish() : null;
+    const sceneKettle = $("sceneKettle");
+    if (sceneKettle) sceneKettle.classList.toggle("simmering", !!active);
+
+    let activeBanner = "";
+    if (active) {
+      const remSecs = Math.ceil(active.remaining);
+      const pct = Math.floor(active.frac * 100);
+      activeBanner = `
+        <div class="kettle-active-card">
+          <div class="k-act-head">
+            <span class="k-act-icon" aria-hidden="true">${active.icon}</span>
+            <div class="k-act-info">
+              <div class="k-act-title"><b>${active.name}</b> · Simmering</div>
+              <div class="k-act-sub">${active.effectDesc}</div>
+            </div>
+            <span class="k-act-timer" aria-live="off">⏱️ ${fmtTime(remSecs)}</span>
+          </div>
+          <div class="k-act-bar" aria-hidden="true"><div style="width:${pct}%"></div></div>
+        </div>`;
+    } else {
+      activeBanner = `
+        <div class="kettle-idle-banner">
+          <span class="k-idle-icon" aria-hidden="true">🫖</span>
+          <div>
+            <b>The kettle is waiting over the embers.</b>
+            <div class="muted">Simmer a meal below for a cozy boost to fishing, patting, or offline rest.</div>
+          </div>
+        </div>`;
+    }
+
+    const recipesHtml = D.COOKING_RECIPES.map(r => {
+      const unlocked = E.recipeUnlocked(r);
+      const isCookingThis = active && active.id === r.id;
+      const cost = E.recipeCost(r);
+      const canAfford = S().fish >= cost;
+      const durStr = fmtTime(r.duration);
+
+      let actionHtml = "";
+      if (!unlocked) {
+        actionHtml = `<span class="k-lock">🔒 Needs ${fmt(r.unlockLifetime)} lifetime fish</span>`;
+      } else if (isCookingThis) {
+        actionHtml = `<span class="k-serving">✔ Simmering now</span>`;
+      } else {
+        actionHtml = `<button class="btn small primary k-cook-btn" data-cook="${r.id}"${canAfford ? "" : " disabled"}>
+          ${active ? "Switch dish" : "Simmer"} · 🐟 ${fmt(cost)}
+        </button>`;
+      }
+
+      return `
+        <div class="recipe-card${isCookingThis ? " cooking" : ""}${unlocked ? "" : " locked"}">
+          <div class="r-head">
+            <div class="r-icon" aria-hidden="true">${r.icon}</div>
+            <div class="r-meta">
+              <div class="r-title">${r.name}</div>
+              <div class="r-dur">⏳ ${durStr} · ${r.flavor}</div>
+            </div>
+          </div>
+          <div class="r-effect"><b>Effect:</b> ${r.effectDesc}</div>
+          <div class="r-foot">${actionHtml}</div>
+        </div>`;
+    }).join("");
+
+    const fullHtml = `${activeBanner}<div class="recipes-grid">${recipesHtml}</div>`;
+    if (setHTML(box, fullHtml)) {
+      box.querySelectorAll("[data-cook]").forEach(btn => {
+        btn.addEventListener("click", e => {
+          const id = btn.dataset.cook;
+          E.cookRecipe(id, pointFrom(e, btn));
+          renderKettle();
+        });
+      });
+    }
+  }
+
+  function updateSceneIceHole() {
+    const hole = $("iceHole");
+    if (!hole) return;
+    const hasColony = D.BUILDINGS.some(b => S().buildings[b.id] > 0);
+    hole.classList.toggle("hidden", !hasColony);
+    const diver = $("holeDiver");
+    const chest = $("holeChest");
+    const active = E.activeDive ? E.activeDive() : null;
+    if (active) {
+      if (active.ready) {
+        if (diver) diver.classList.add("hidden");
+        if (chest) { chest.classList.remove("hidden"); chest.classList.add("pulse"); }
+      } else {
+        if (chest) chest.classList.add("hidden");
+        if (diver) { diver.classList.remove("hidden"); diver.classList.add("bobbing"); }
+      }
+    } else {
+      if (diver) diver.classList.add("hidden");
+      if (chest) chest.classList.add("hidden");
+    }
+  }
+
+  function renderDiving() {
+    const box = $("divingUI");
+    if (!box) return;
+    updateSceneIceHole();
+    const active = E.activeDive ? E.activeDive() : null;
+    const spend = E.spendableFeathers();
+    const diverHired = "diver" in S().helpers;
+    const diverOn = E.helperOn("diver");
+    const curDiverStrat = E.diverStrategy ? E.diverStrategy() : (S().diverStrategy || "hunter");
+
+    let autoBarHtml = "";
+    if (diverHired) {
+      autoBarHtml = `
+        <div class="dive-auto-bar">
+          <div class="d-auto-left">
+            <span class="d-auto-badge">🥽 Diver Marina</span>
+            <button class="btn small toggle${diverOn ? " on" : ""}" id="diverAutoToggle" aria-pressed="${diverOn}">
+              Auto-Dive: ${diverOn ? "ON" : "OFF"}
+            </button>
+          </div>
+          <div class="strat-pills">
+            ${D.DIVER_STRATEGIES.map(st => `
+              <button class="strat-pill${curDiverStrat === st.id ? " active" : ""}" data-diver-strat="${st.id}" aria-pressed="${curDiverStrat === st.id}" title="${st.desc}">
+                <span>${st.icon}</span> ${st.label}
+              </button>
+            `).join("")}
+          </div>
+        </div>`;
+    } else {
+      const diverCost = (D.HELPER_BY_ID.diver && D.HELPER_BY_ID.diver.cost) || 100;
+      const canHire = spend >= diverCost;
+      autoBarHtml = `
+        <div class="dive-auto-hire-banner">
+          <span class="d-hire-icon" aria-hidden="true">🥽</span>
+          <div class="d-hire-info">
+            <b>Automate Expeditions with Diver Marina</b>
+            <div class="muted">Hire Diver Marina in the Heritage tab to automatically claim relics and re-plunge into expeditions.</div>
+          </div>
+          ${canHire ? `<button class="btn small primary" id="quickHireDiver">Hire · 🪶 ${fmt(diverCost)}</button>` : `<button class="btn small" id="gotoHeritageBtn">View in Heritage →</button>`}
+        </div>`;
+    }
+
+    let activeBanner = "";
+    if (active) {
+      if (active.ready) {
+        activeBanner = `
+          <div class="dive-ready-card">
+            <div class="d-ready-head">
+              <span class="d-ready-icon" aria-hidden="true">🎁</span>
+              <div class="d-ready-info">
+                <div class="d-ready-title"><b>Diver Returned!</b> · Ready to claim</div>
+                <div class="d-ready-sub">Your diver has resurfaced from the ${active.spot.name} with an ancient deep-sea treasure!</div>
+              </div>
+              <button class="btn primary d-claim-btn" id="claimDiveBtn">🦪 Open Treasure</button>
+            </div>
+          </div>`;
+      } else {
+        const remSecs = active.remaining;
+        const pct = Math.floor(active.progress * 100);
+        activeBanner = `
+          <div class="dive-active-card">
+            <div class="d-act-head">
+              <span class="d-act-icon" aria-hidden="true">🤿</span>
+              <div class="d-act-info">
+                <div class="d-act-title"><b>Diving in progress</b> · ${active.spot.name}</div>
+                <div class="d-act-sub">${active.spot.desc}</div>
+              </div>
+              <span class="d-act-timer" aria-live="off">⏱️ ${fmtTime(remSecs)}</span>
+            </div>
+            <div class="d-act-bar" aria-hidden="true"><div style="width:${pct}%"></div></div>
+          </div>`;
+      }
+    } else {
+      activeBanner = `
+        <div class="dive-idle-banner">
+          <span class="d-idle-icon" aria-hidden="true">🤿</span>
+          <div>
+            <b>The ice hole is open and clear.</b>
+            <div class="muted">Send an expedition diver below to scavenge underwater relics for your collection shelf.</div>
+          </div>
+        </div>`;
+    }
+
+    const spotsHtml = D.DIVE_SPOTS.map(spot => {
+      const unlocked = E.diveSpotUnlocked(spot);
+      const isThisActive = active && active.spotId === spot.id;
+      const durStr = fmtTime(spot.duration);
+
+      const relicIconsHtml = (spot.relics || []).map(rId => {
+        const r = D.RELIC_BY_ID[rId];
+        if (!r) return "";
+        const lvl = E.relicLevel(rId);
+        const stars = lvl === 0 ? "☆☆☆" : "★".repeat(lvl) + "☆".repeat(3 - lvl);
+        return `<span class="spot-relic-pill${lvl > 0 ? " owned" : ""}" title="${r.name} (${lvl}/3 stars: ${r.effect})">${r.icon} <span class="stars">${stars}</span></span>`;
+      }).join(" ");
+
+      let actionHtml = "";
+      if (!unlocked) {
+        actionHtml = `<span class="d-lock">🔒 Needs ${fmt(spot.unlockLifetime)} lifetime fish</span>`;
+      } else if (isThisActive) {
+        actionHtml = `<span class="d-active-label">${active.ready ? "✔ Dive complete!" : "⏳ Diver submerged"}</span>`;
+      } else if (active) {
+        actionHtml = `<button class="btn small primary" disabled>Diver busy</button>`;
+      } else {
+        actionHtml = `<button class="btn small primary d-start-btn" data-spot="${spot.id}">Plunge Diver (${durStr})</button>`;
+      }
+
+      return `
+        <div class="dive-spot-card${isThisActive ? " active" : ""}${unlocked ? "" : " locked"}">
+          <div class="d-head">
+            <div class="d-icon" aria-hidden="true">${spot.icon}</div>
+            <div class="d-meta">
+              <div class="d-title">${spot.name}</div>
+              <div class="d-dur">⏱️ ${durStr} · ${spot.desc}</div>
+            </div>
+          </div>
+          <div class="d-relics-pool">
+            <span class="d-pool-label">Relic Pool:</span>
+            <div class="d-pool-list">${relicIconsHtml}</div>
+          </div>
+          <div class="d-foot">${actionHtml}</div>
+        </div>`;
+    }).join("");
+
+    const fullHtml = `${autoBarHtml}${activeBanner}<div class="dive-spots-grid">${spotsHtml}</div>`;
+    if (setHTML(box, fullHtml)) {
+      const autoToggle = box.querySelector("#diverAutoToggle");
+      if (autoToggle) {
+        autoToggle.addEventListener("click", () => {
+          E.toggleHelper("diver");
+          renderDiving();
+        });
+      }
+      box.querySelectorAll("[data-diver-strat]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          E.setDiverStrategy(btn.dataset.diverStrat);
+          renderDiving();
+        });
+      });
+      const hireBtn = box.querySelector("#quickHireDiver");
+      if (hireBtn) {
+        hireBtn.addEventListener("click", e => {
+          E.hireHelper("diver", pointFrom(e, hireBtn));
+          renderDiving();
+        });
+      }
+      const gotoHeritageBtn = box.querySelector("#gotoHeritageBtn");
+      if (gotoHeritageBtn) {
+        gotoHeritageBtn.addEventListener("click", () => {
+          selectTab("heritage", true);
+          const h = $("helpers");
+          if (h) h.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+      }
+      box.querySelectorAll("[data-spot]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const sId = btn.dataset.spot;
+          if (E.startDive(sId)) {
+            renderDiving();
+          }
+        });
+      });
+      const claimBtn = box.querySelector("#claimDiveBtn");
+      if (claimBtn) {
+        claimBtn.addEventListener("click", e => {
+          const res = E.claimDive();
+          if (res) {
+            popRelicReward(res, pointFrom(e, claimBtn));
+            renderDiving();
+            renderRelicShelf();
+          }
+        });
+      }
+    }
+  }
+
+  function renderRelicShelf() {
+    const box = $("relicShelfUI");
+    if (!box) return;
+
+    const cardsHtml = D.RELICS.map(r => {
+      const lvl = E.relicLevel(r.id);
+      const discovered = lvl > 0;
+      const stars = lvl === 0 ? "☆☆☆" : "★".repeat(lvl) + "☆".repeat(3 - lvl);
+
+      let multText = "";
+      if (lvl === 1) multText = " (1× bonus)";
+      else if (lvl === 2) multText = " (1.5× bonus)";
+      else if (lvl === 3) multText = " (MAX 2× bonus)";
+
+      return `
+        <div class="relic-card${discovered ? " discovered" : " mystery"}">
+          <div class="relic-icon-wrap" aria-hidden="true">
+            <span class="relic-icon">${discovered ? r.icon : "❔"}</span>
+          </div>
+          <div class="relic-meta">
+            <div class="relic-title">${discovered ? r.name : "Undiscovered Relic"}</div>
+            <div class="relic-stars" aria-label="${lvl} of 3 stars">${stars} <span class="lvl-label">${lvl > 0 ? `Lvl ${lvl}/3` : "Locked"}</span></div>
+            <div class="relic-desc">${discovered ? r.desc : "Plunge into deep waters to recover this ancient artifact."}</div>
+            <div class="relic-perk"><b>Perk:</b> ${r.effect}${multText}</div>
+          </div>
+        </div>`;
+    }).join("");
+
+    setHTML(box, `<div class="relic-grid">${cardsHtml}</div>`);
+  }
+
+  function popRelicReward(res, origin) {
+    if (res.auto) {
+      if (res.relic) {
+        toast(`🥽 <b>Diver Marina retrieved: ${res.relic.icon} ${res.relic.name}</b> (Lvl ${res.level})`, 3000);
+      } else if (res.bonusFish > 0) {
+        toast(`🥽 <b>Diver Marina retrieved +${fmt(res.bonusFish)} fish</b> from the deep!`, 3000);
+      }
+      return;
+    }
+    if (res.relic) {
+      const lvl = res.level;
+      const stars = "★".repeat(lvl) + "☆".repeat(3 - lvl);
+      toast(`<b>${res.relic.icon} ${res.relic.name}</b> (${stars})<br>${res.relic.effect} (Level ${lvl} active!)`);
+    } else if (res.bonusFish > 0) {
+      toast(`<b>🎁 Deep-Sea Bounty!</b><br>All relics here are maxed! Retrieved +${fmt(res.bonusFish)} fish from the depths.`);
     }
   }
 
@@ -718,12 +1173,17 @@
       ["Pats by rubbing", fmt(st.rubPats)],
       ["Big Catches", `${fmt(st.bigCatches)} (${+(M().critChance * 100).toFixed(1)}% chance, ×${fmt(M().critMult)})`],
       ["Golden fish caught", fmt(st.goldenClicks)],
+      ["Exotic fish caught", fmt(st.exoticCatches || 0)],
       ["Colony members", fmt(D.totalColony(S()))],
       ["Upgrades owned", `${S().upgrades.length}`],
       ["Workshop levels", `${Object.values(S().research).reduce((a, b) => a + b, 0)}`],
       ["Heirloom levels", `${Object.values(S().heritage).reduce((a, b) => a + b, 0)}`],
       ["Migrations", `${S().migrations}`],
       ["Shores visited", `${S().shoresVisited.length} of ${D.SHORES.length}`],
+      ["Passport stamps", `${(S().shoreStamps || []).length} of ${D.PASSPORT_STAMPS.length}`],
+      ["Campfire meals cooked", fmt(st.dishesCooked || 0)],
+      ["Deep-sea dives completed", fmt(st.divesCompleted || 0)],
+      ["Relics discovered", `${Object.keys(S().relics || {}).length} of ${D.RELICS.length}`],
       ["Letters answered", fmt(st.lettersClaimed)],
       ["Catches carried to the basket", fmt(st.deliveries)],
       ["Music listened to", fmtTime(st.musicSeconds)],
@@ -1293,22 +1753,35 @@
   // =====================================================================
   function spawnGolden(force = null) {
     if (M().noGolden) return;
+    const variant = force === "rush" ? "golden" : (force || E.rollGoldenVariant());
     const el = document.createElement("button");
-    el.className = "golden-fish";
-    el.textContent = "🐟";
-    el.setAttribute("aria-label", "Golden fish! Catch it");
+    el.className = `golden-fish variant-${variant}`;
+    const VAR_INFO = {
+      golden:    { icon: "🐟", label: "Golden fish! Catch it" },
+      rainbow:   { icon: "🐠", label: "Rainbow fish! Catch it for Rainbow Frenzy" },
+      glacier:   { icon: "🐟", label: "Glacier fish! Catch it for Glacier Freeze" },
+      feathered: { icon: "🪶", label: "Feathered fish! Catch it for Moult Bounty" },
+    };
+    const info = VAR_INFO[variant] || VAR_INFO.golden;
+    el.textContent = info.icon;
+    el.setAttribute("aria-label", info.label);
     const dur = Math.min(30, 12 * M().goldenDur);
     el.style.animationDuration = `${dur}s, .7s`;
     const left = 5 + Math.random() * 80, top = 15 + Math.random() * 65;
     el.style.left = `${left}vw`;
     el.style.top = `${top}vh`;
     let caught = false;
-    const catchIt = (pos, auto) => { if (caught) return; caught = true; el.remove(); E.goldenEffect(pos, auto, force); };
+    const catchIt = (pos, auto) => {
+      if (caught) return;
+      caught = true;
+      el.remove();
+      E.goldenEffect(pos, auto, force, false, variant);
+    };
     el.addEventListener("click", e => catchIt(pointFrom(e, el), false));
     $("goldenLayer").appendChild(el);
     setTimeout(() => el.remove(), dur * 1000);
     if (E.helperOn("lookout")) setTimeout(() => { if (document.contains(el)) catchIt(pointFrom(null, el), true); }, 3000);
-    PI.bus.emit("goldenSpawn", { x: (left / 100) * innerWidth, y: (top / 100) * innerHeight });
+    PI.bus.emit("goldenSpawn", { x: (left / 100) * innerWidth, y: (top / 100) * innerHeight, variant });
   }
 
   // =====================================================================
@@ -1333,8 +1806,8 @@
   function renderTab(full) {
     if (currentTab === "colony") { renderUpgrades(full); tickUpgrades(); tickBuildings(); }
     if (currentTab === "workshop") tickResearch();
-    if (currentTab === "heritage") { tickMigration(); if (full) { renderShores(); renderHelpers(); refreshTree(); } }
-    if (currentTab === "home") { renderLetters(); renderLetterReset(); if (full) renderWardrobe(); }
+    if (currentTab === "heritage") { tickMigration(); if (full) { renderShores(); renderPassport(); renderHelpers(); refreshTree(); } }
+    if (currentTab === "home") { renderLetters(); renderLetterReset(); renderKettle(); renderDiving(); if (full) { renderWardrobe(); renderRelicShelf(); } }
     if (currentTab === "achievements" && full) renderAchievements();
     if (currentTab === "stats" && full) renderStats();
   }
@@ -1424,10 +1897,24 @@
     setText($("fish"), fmt(Math.floor(shownFish)));
   }
 
+  // The warmth meter under the penguin: fills as you keep patting, cools when you stop
+  function renderWarmth() {
+    const w = E.warmthLevel(), box = $("warmth");
+    box.classList.toggle("on", w > 0);
+    box.classList.toggle("toasty", w >= 1);
+    $("warmthFill").style.width = `${Math.round(w * 100)}%`;
+    setText($("warmthLabel"), w >= 1 ? `Toasty! +${Math.round(E.WARMTH_BONUS * 100)}% pats` : w > 0 ? `Warming up +${Math.round(w * E.WARMTH_BONUS * 100)}%` : "");
+  }
+
   function tick() {
     tickCounter();
     setText($("fps"), fmt(E.fishPerSecond()));
     setText($("clickPower"), fmt(E.clickPower()));
+    const pps = E.patsPerSecond ? E.patsPerSecond() : 0;
+    setText($("patsPerSec"), fmt(pps));
+    const rateEl = $("patRate");
+    if (rateEl) rateEl.classList.toggle("active", pps > 0);
+    renderWarmth();
     setText($("featherTotal"), fmt(S().feathersEarned));
     setText($("featherBonus"), M().feather >= 11 ? `×${fmt(M().feather)}` : `+${fmt((M().feather - 1) * 100)}%`);
     $("featherBadge").classList.toggle("hidden", S().feathersEarned === 0 && E.pendingFeathers() === 0);
@@ -1477,7 +1964,12 @@
   function slowTick() {   // once a second: things that change slowly
     renderNapStars();
     if (currentTab === "colony") renderUpgrades();
+    if (currentTab === "home") { renderKettle(); renderDiving(); }
     if (currentTab === "stats") renderStats();
+    const active = E.activeDish ? E.activeDish() : null;
+    const sceneKettle = $("sceneKettle");
+    if (sceneKettle) sceneKettle.classList.toggle("simmering", !!active);
+    updateSceneIceHole();
     updateBadges();
     renderNextGoal();
     rebuildScene();
@@ -1497,9 +1989,10 @@
     refreshBuildings();
     rebuildScene();
     updateBadges();
+    updateSceneIceHole();
     if (currentTab === "achievements") renderAchievements();
-    if (currentTab === "heritage") { renderShores(); renderHelpers(); refreshTree(); }
-    if (currentTab === "home") { renderLetters(); renderWardrobe(); }
+    if (currentTab === "heritage") { renderShores(); renderPassport(); renderHelpers(); refreshTree(); }
+    if (currentTab === "home") { renderLetters(); renderWardrobe(); renderKettle(); renderDiving(); renderRelicShelf(); }
     renderTab(false);
   }
 
@@ -1514,13 +2007,51 @@
     bus.on("buyBuilding", d => arrival(d.id));
     bus.on("milestone", d => toast(`<b>Milestone!</b> ${d.b.plural} now catch ${d.mult === 2 ? "twice" : `${+d.mult.toFixed(2)}×`} as many fish.`));
     bus.on("buyAll", d => toast(`🛍️ Bought <b>${d.count}</b> upgrade${d.count > 1 ? "s" : ""}.`));
-    bus.on("golden", d => d.quiet || toast(d.auto ? `📯 Lookout Lumi caught a golden fish! ${d.msg}` : d.msg));
+    bus.on("golden", d => {
+      if (d.quiet) return;
+      const vName = d.variant === "rainbow" ? "a rainbow fish"
+                  : d.variant === "glacier" ? "a glacier fish"
+                  : d.variant === "feathered" ? "a feathered fish"
+                  : "a golden fish";
+      toast(d.auto ? `📯 Lookout Lumi caught ${vName}! ${d.msg}` : d.msg);
+    });
     bus.on("achievements", list => queueMemories(list));
     bus.on("napStreak", ns => toast(ns.mask
       ?"😴 <b>7 nap days in a row!</b> The Sleep Mask is in your wardrobe."
       : `😴 <b>Nap streak: ${ns.count} day${ns.count === 1 ? "" : "s"}</b>${ns.best < 7 ? ` · ${7 - ns.count} more for the Sleep Mask` : ""}`));
     bus.on("respec", () => toast("🪶 <b>Feathers refunded.</b> Plant your tree however you like."));
     bus.on("hireHelper", d => toast(`${d.h.icon} <b>${d.h.name}</b> has joined the colony!`));
+    bus.on("passportStamp", d => {
+      const shName = (d.shore && d.shore.name) || (D.SHORE_BY_ID[d.stamp.shoreId] && D.SHORE_BY_ID[d.stamp.shoreId].name) || "";
+      toast(`🛂 <b>Passport Stamped!</b> ${d.stamp.icon} <b>${d.stamp.name}</b> (${shName}): ${d.stamp.rewardDesc}`);
+      if (currentTab === "heritage") renderPassport();
+    });
+    bus.on("dishCooked", d => {
+      toast(`${d.recipe.icon} <b>${d.recipe.name}</b> is simmering over the campfire! ${d.recipe.effectDesc}`);
+      if (currentTab === "home") renderKettle();
+      const sceneKettle = $("sceneKettle");
+      if (sceneKettle) sceneKettle.classList.add("simmering");
+    });
+    bus.on("dishFinished", d => {
+      if (d.recipe) toast(`🥣 The pot of <b>${d.recipe.name}</b> has been enjoyed by the colony.`);
+      if (currentTab === "home") renderKettle();
+      const sceneKettle = $("sceneKettle");
+      if (sceneKettle) sceneKettle.classList.remove("simmering");
+    });
+    bus.on("diveStarted", d => {
+      toast(`🤿 Diver plunged into the <b>${d.spot.name}</b>!`, 3500);
+      if (currentTab === "home") renderDiving();
+      updateSceneIceHole();
+    });
+    bus.on("diveReady", d => {
+      toast(`🤿 <b>Diver Returned!</b> Resurfaced from the ${d.spot.name}. Tap the Ice Hole or visit Home to collect!`);
+      if (currentTab === "home") renderDiving();
+      updateSceneIceHole();
+    });
+    bus.on("relicFound", d => {
+      if (currentTab === "home") { renderDiving(); renderRelicShelf(); }
+      updateSceneIceHole();
+    });
     bus.on("letterClaimed", d => toast(`💌 You wrote back to <b>${d.l.sender}</b>. +${fmt(d.reward)} fish`));
     bus.on("letterBonus", d => toast(`📦 <b>Care package!</b> Production ×7 for ${d.secs}s.`));
     bus.on("seasonUnlock", d => toast(`${d.season.icon} <b>${d.season.name} gift!</b> New in your wardrobe: ${d.item.name}.`));
@@ -1627,6 +2158,38 @@
              <p class="muted">Helpers stay hired, and your production bonus from feathers stays the same. It's free, and you can do it any time.</p>`,
       actions: [{ label: "Keep my tree", cancel: true }, { label: "Refund feathers", primary: true, onClick: () => { E.refundTree(); E.save(); } }],
     }));
+
+    const fireEl = $("colonyFire");
+    if (fireEl) {
+      const goKettle = () => {
+        selectTab("home", true);
+        const k = $("campfireKettleUI");
+        if (k) k.scrollIntoView({ behavior: "smooth", block: "center" });
+      };
+      fireEl.addEventListener("click", goKettle);
+      fireEl.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); goKettle(); } });
+    }
+
+    const iceHoleEl = $("iceHole");
+    if (iceHoleEl) {
+      const handleHole = e => {
+        const active = E.activeDive ? E.activeDive() : null;
+        if (active && active.ready) {
+          const res = E.claimDive();
+          if (res) {
+            popRelicReward(res, pointFrom(e, iceHoleEl));
+            renderDiving();
+            renderRelicShelf();
+          }
+        } else {
+          selectTab("home", true);
+          const d = $("divingUI");
+          if (d) d.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      };
+      iceHoleEl.addEventListener("click", handleHole);
+      iceHoleEl.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleHole(e); } });
+    }
 
     shownFish = S().fish;
     rebuildScene(true);

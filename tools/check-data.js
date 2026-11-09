@@ -14,7 +14,7 @@ const check = (ok, msg) => { if (!ok) problems.push(msg); };
 // Unique ids within each table (ids are save-file keys)
 for (const [name, list] of Object.entries({
   BUILDINGS: D.BUILDINGS, UPGRADES: D.UPGRADES, RESEARCH: D.RESEARCH, TREE: D.TREE, ACHIEVEMENTS: D.ACHIEVEMENTS,
-  HELPERS: D.HELPERS, SHORES: D.SHORES, SEASONS: D.SEASONS, LETTER_TYPES: D.LETTER_TYPES,
+  HELPERS: D.HELPERS, SHORES: D.SHORES, PASSPORT_STAMPS: D.PASSPORT_STAMPS, COOKING_RECIPES: D.COOKING_RECIPES, DIVE_SPOTS: D.DIVE_SPOTS, RELICS: D.RELICS, SEASONS: D.SEASONS, LETTER_TYPES: D.LETTER_TYPES,
 })) {
   const d = dupes(list.map(x => x.id));
   check(!d.length, `${name} has duplicate ids: ${d.join(", ")}`);
@@ -35,7 +35,7 @@ D.BUILDINGS.forEach(b => check((D.BUILDING_UPGRADES[b.id] || []).length === D.TI
 D.TREE.forEach(n => {
   [...(n.requires || []), ...(n.requiresAny || [])].forEach(r => check(D.H_BY_ID[r], `tree node ${n.id} requires unknown ${r}`));
   check(n.max >= 1 && n.cost >= 0 && n.growth >= 1, `tree node ${n.id} has bad max/cost/growth`);
-  check(n.x >= 0 && n.x < 7 && n.y >= 0 && n.y < 6, `tree node ${n.id} is off the grid`);
+  check(n.x >= 0 && n.x < 7 && n.y >= 0 && n.y < 7, `tree node ${n.id} is off the grid`);
 });
 check(!dupes(D.TREE.map(n => `${n.x},${n.y}`)).length, "two tree nodes share a grid position");
 D.UPGRADES.forEach(u => check(u.cost > 0 && u.name && u.desc, `upgrade ${u.id} is missing cost/name/desc`));

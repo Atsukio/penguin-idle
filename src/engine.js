@@ -11,6 +11,8 @@
     HELPERS, HELPER_BY_ID, SHORES, SHORE_BY_ID, SEASONS, SEASON_BY_ID, COSMETICS, LETTER_TYPES, LETTER_SENDERS,
     MILESTONES, COST_GROWTH, FEATHER_SCALE, FEATHER_BONUS, ACH_BONUS, SAVE_KEY, SAVE_VERSION, TEXT_SIZES, totalColony,
     GAME_VERSION, NAP_BONUS, BEDTIMES, NAP_STARS,
+    FOREMAN_STRATEGIES, FOREMAN_STRATEGY_BY_ID,
+    SHOPKEEPER_STRATEGIES, SHOPKEEPER_STRATEGY_BY_ID,
   } = D;
 
   const MAX = 1e300;   // hard ceiling so numbers never overflow to Infinity (which JSON would save as null)
@@ -44,9 +46,10 @@
 
   function freshStats() {
     return {
-      clicks: 0, clickFish: 0, goldenClicks: 0, bigCatches: 0, longestAway: 0, homecomings: 0,
+      clicks: 0, clickFish: 0, goldenClicks: 0, exoticCatches: 0, bigCatches: 0, longestAway: 0, homecomings: 0,
       buildingsBought: 0, upgradesBought: 0, researchBought: 0, lettersClaimed: 0, outfitChanges: 0, seasonalCatches: 0,
       deliveries: 0, musicSeconds: 0, propLooks: 0, rubPats: 0, napSeconds: 0, napBonusFish: 0,
+      sunnyCatches: 0, quietSeconds: 0, blizzardMigrateFeathers: 0, dishesCooked: 0, divesCompleted: 0,
       startedAt: now(), runStartedAt: now(),
     };
   }
@@ -58,11 +61,19 @@
       upgrades: [], achievements: [],
       achDates: {},        // memory id -> when it was collected (ms); memories from older saves have no date
       achNew: [],          // memories collected since the Memories tab was last left (they show as New)
-      feathersEarned: 0, feathersSpent: 0,
+      feathersEarned: 0, feathersSpent: 0, bonusFeathers: 0,
       heritage: {},        // heirloom id -> level
       research: {},        // workshop id -> level (reset on migration)
       helpers: {},         // helper id -> true (on) / false (off); a key means it's hired
+      foremanStrategy: "impact",
+      shopkeeperStrategy: "impact",
+      diverStrategy: "hunter",
       shore: "home", nextShore: "home", shoresVisited: ["home"],
+      shoreStamps: [],     // shore ids whose passport expedition challenges are complete
+      shoreStampDates: {}, // shore id -> ms when stamped
+      cooking: { id: "", until: 0, startedAt: 0 }, // active dish simmering in the campfire kettle
+      dive: { spotId: "", startedAt: 0, until: 0, ready: false }, // active deep-sea dive
+      relics: {},          // relicId -> level (1..3)
       cosmetics: { hat: "coral", scarf: "coral", item: "mug" },
       names: [],           // names the player gave colony residents (up to NAME_SLOTS; "" = an unnamed slot)
       defaultNames: [],    // a cute name per slot for residents the player hasn't named (filled in by ensureDefaultNames)
@@ -122,6 +133,9 @@
       .forEach(k => { if (mods[k]) m[k] *= mods[k]; });
     if (mods.offline) m.offlineMult *= mods.offline;
     if (mods.noGolden) m.noGolden = true;
+    if (mods.critChance) m.critChance += mods.critChance;
+    if (mods.napMult) m.napMult += mods.napMult;
+    if (mods.warmthRate) m.warmthRate = (m.warmthRate || 1) * mods.warmthRate;
   }
 
   function recompute() {
@@ -142,6 +156,46 @@
     applyMods(m, m.shore.mods);
     if (m.season) applyMods(m, m.season.mods);
     BUILDINGS.forEach(b => { m.building[b.id] *= Math.pow(m.milestoneMult, milestonesReached(S.buildings[b.id])); });
+    const stampsCount = (S.shoreStamps || []).length;
+    if (stampsCount > 0) m.global *= (1 + 0.015 * stampsCount);
+    if ((S.shoreStamps || []).includes("home")) m.warmthBonusExtra = 0.05;
+    if ((S.shoreStamps || []).includes("krillbay")) m.building.krill *= 1.1;
+    if ((S.shoreStamps || []).includes("sunnycove")) m.goldenDur *= 1.1;
+    if ((S.shoreStamps || []).includes("blizzard")) m.featherGain *= 1.05;
+    if ((S.shoreStamps || []).includes("aurorafields")) m.building.aurora *= 1.1;
+    if ((S.shoreStamps || []).includes("quiethollow")) m.napMult += 0.05;
+    if ((S.shoreStamps || []).includes("harbour")) m.costMult *= 0.97;
+    if ((S.shoreStamps || []).includes("rookery")) m.researchCost *= 0.95;
+    const curDish = S.cooking && S.cooking.id ? D.COOKING_RECIPE_BY_ID[S.cooking.id] : null;
+    if (curDish && S.cooking.until > now()) {
+      if (m.cookingEffectMult && m.cookingEffectMult > 1) {
+        const boosted = {};
+        if (curDish.mods.global) boosted.global = 1 + (curDish.mods.global - 1) * m.cookingEffectMult;
+        if (curDish.mods.click) boosted.click = 1 + (curDish.mods.click - 1) * m.cookingEffectMult;
+        if (curDish.mods.goldenFreq) boosted.goldenFreq = 1 + (curDish.mods.goldenFreq - 1) * m.cookingEffectMult;
+        if (curDish.mods.critChance) boosted.critChance = curDish.mods.critChance * m.cookingEffectMult;
+        if (curDish.mods.luckyMult) boosted.luckyMult = 1 + (curDish.mods.luckyMult - 1) * m.cookingEffectMult;
+        if (curDish.mods.offline) boosted.offline = 1 + (curDish.mods.offline - 1) * m.cookingEffectMult;
+        if (curDish.mods.warmthRate) boosted.warmthRate = 1 + (curDish.mods.warmthRate - 1) * m.cookingEffectMult;
+        if (curDish.mods.costMult) boosted.costMult = 1 - (1 - curDish.mods.costMult) * m.cookingEffectMult;
+        if (curDish.mods.upgradeCost) boosted.upgradeCost = 1 - (1 - curDish.mods.upgradeCost) * m.cookingEffectMult;
+        applyMods(m, boosted);
+      } else {
+        applyMods(m, curDish.mods);
+      }
+    }
+    if (S.relics) {
+      const relL = id => S.relics[id] || 0;
+      const relicK = L => (L === 1 ? 1 : L === 2 ? 1.5 : 2);
+      if (relL("spiral") > 0) m.clickFps += 0.005 * relicK(relL("spiral"));
+      if (relL("coral") > 0) m.goldenDur *= (1 + 0.10 * relicK(relL("coral")));
+      if (relL("pearl") > 0) m.global *= (1 + 0.03 * relicK(relL("pearl")));
+      if (relL("sextant") > 0) m.featherGain *= (1 + 0.05 * relicK(relL("sextant")));
+      if (relL("anchor") > 0) m.costMult *= (1 - 0.05 * relicK(relL("anchor")));
+      if (relL("geode") > 0) m.critMult *= (1 + 0.25 * relicK(relL("geode")));
+      if (relL("whistle") > 0) m.warmthBonusExtra = (m.warmthBonusExtra || 0) + 0.05 * relicK(relL("whistle"));
+      if (relL("diadem") > 0) m.global *= (1 + 0.05 * relicK(relL("diadem")));
+    }
     m.critChance = Math.min(0.25, m.critChance);
     m.goldenFreq = Math.min(4, m.goldenFreq);   // caps keep golden fish a treat rather than a firehose
     m.goldenDur = Math.min(4, m.goldenDur);
@@ -209,8 +263,8 @@
 
   // Cube root (as in Cookie Clicker): doubling your feathers takes 8× the fish, so later runs lengthen
   // instead of collapsing to zero. A square root let feathers compound into a runaway.
-  const featherTotalFor = lifetime => Math.floor(Math.cbrt(lifetime / FEATHER_SCALE) * M.featherGain);
-  const pendingFeathers = () => Math.max(0, featherTotalFor(S.lifetimeFish) - S.feathersEarned);
+  const featherTotalFor = lifetime => Math.floor(Math.cbrt(Math.max(0, lifetime) / FEATHER_SCALE) * M.featherGain);
+  const pendingFeathers = () => Math.max(0, featherTotalFor(S.lifetimeFish) - S.feathersEarned + (S.bonusFeathers || 0));
   // Aim past the feathers already earned: after a run with a higher feather rate (Blizzard Pass), the
   // lifetime total can sit below feathersEarned, and the target would otherwise creep up with no feather.
   const nextFeatherAt = () => Math.pow((Math.max(featherTotalFor(S.lifetimeFish), S.feathersEarned) + 1) / M.featherGain, 3) * FEATHER_SCALE;
@@ -245,9 +299,42 @@
     S.lifetimeFish = Math.min(MAX, S.lifetimeFish + n);
   }
 
+  // Warmth: keep patting and the penguin glows. Each pat in a row warms it (up to +WARMTH_BONUS on pats),
+  // and it cools a couple of seconds after you stop. It isn't saved: it's a moment, not a chore.
+  const WARMTH_PATS = 50, WARMTH_GAP = 2000, WARMTH_BONUS = 0.25;
+  const warmth = { count: 0, last: 0 };
+  const warmthLevel = () => (warmth.count > 0 && now() - warmth.last <= WARMTH_GAP ? Math.min(1, warmth.count / WARMTH_PATS) : 0);
+  const warmthMult = () => 1 + (WARMTH_BONUS + (M && M.warmthBonusExtra ? M.warmthBonusExtra : 0)) * warmthLevel();
+
+  const manualPatTimes = [];
+  function recordManualPat(t = now()) {
+    manualPatTimes.push(t);
+    const cutoff = t - 1000;
+    while (manualPatTimes.length && manualPatTimes[0] < cutoff) manualPatTimes.shift();
+    if (manualPatTimes.length > 200) manualPatTimes.splice(0, manualPatTimes.length - 200);
+  }
+
+  function patsPerSecond() {
+    const t = now();
+    const cutoff = t - 1000;
+    while (manualPatTimes.length && manualPatTimes[0] < cutoff) manualPatTimes.shift();
+    const auto = (M && M.autoRate) ? M.autoRate : 0;
+    return manualPatTimes.length + auto;
+  }
+
   // how: "tap" (click, key or press), "rub" (stroking it) or "hold" (pressing and holding)
   function clickPenguin(pos, auto = false, how = "tap") {
     let p = clickPower();
+    if (!auto) {
+      recordManualPat();
+      const t = now();
+      if (t - warmth.last > WARMTH_GAP) warmth.count = 0;
+      const before = warmthLevel();
+      warmth.count += (M && M.warmthRate ? M.warmthRate : 1);
+      warmth.last = t;
+      p *= warmthMult();
+      if (before < 1 && warmthLevel() >= 1) bus.emit("toasty", {});
+    }
     const crit = Math.random() < M.critChance;   // Big Catch
     if (crit) { p *= M.critMult; S.stats.bigCatches++; }
     gain(p);
@@ -275,6 +362,7 @@
       bus.emit("buyBuilding", { id, n, origin });
     }
     if (gained > 0) bus.emit("milestone", { b, mult: Math.pow(M.milestoneMult, gained), origin, quiet });
+    checkPassportStamps();
     return true;
   }
 
@@ -320,6 +408,7 @@
       bus.emit("structure");
       bus.emit("buyResearch", { r, level: L + 1, origin });
     }
+    checkPassportStamps();
     return true;
   }
 
@@ -360,11 +449,52 @@
     bus.emit("structure");
   }
 
+  function setForemanStrategy(id) {
+    if (!FOREMAN_STRATEGY_BY_ID[id]) return false;
+    S.foremanStrategy = id;
+    save();
+    bus.emit("foremanStrategy", id);
+    bus.emit("structure");
+    return true;
+  }
+
+  function setShopkeeperStrategy(id) {
+    if (!SHOPKEEPER_STRATEGY_BY_ID[id]) return false;
+    S.shopkeeperStrategy = id;
+    save();
+    bus.emit("shopkeeperStrategy", id);
+    bus.emit("structure");
+    return true;
+  }
+
+  function setDiverStrategy(id) {
+    if (!D.DIVER_STRATEGY_BY_ID[id]) return false;
+    S.diverStrategy = id;
+    save();
+    bus.emit("diverStrategy", id);
+    bus.emit("structure");
+    return true;
+  }
+
   function doMigrate(shoreId = "home", auto = false) {
     const gainF = pendingFeathers();
     if (gainF < 1) return false;
     const shore = availableShores().find(sh => sh.id === shoreId) || SHORE_BY_ID.home;
+    const prevShore = S.shore;
+    if (prevShore === "blizzard") {
+      S.stats.blizzardMigrateFeathers = Math.max(S.stats.blizzardMigrateFeathers || 0, gainF);
+      if (gainF >= 15 && !(S.shoreStamps || []).includes("blizzard")) {
+        if (!S.shoreStamps) S.shoreStamps = [];
+        if (!S.shoreStampDates) S.shoreStampDates = {};
+        S.shoreStamps.push("blizzard");
+        S.shoreStampDates.blizzard = now();
+        const stamp = D.PASSPORT_STAMP_BY_ID.blizzard;
+        bus.emit("passportStamp", { stamp, shore: SHORE_BY_ID.blizzard });
+        checkAchievements();
+      }
+    }
     S.feathersEarned += gainF;
+    S.bonusFeathers = 0;
     S.migrations++;
     const keep = S.upgrades.filter(id => {
       const [b, t] = id.split("_");
@@ -379,6 +509,7 @@
     S.shore = shore.id;
     if (!S.shoresVisited.includes(shore.id)) S.shoresVisited.push(shore.id);
     S.stats.runStartedAt = now();
+    manualPatTimes.length = 0;
     recompute();
     bus.emit("structure");
     bus.emit("migrate", { feathers: S.feathersEarned, gained: gainF, shore, auto });
@@ -464,6 +595,15 @@
   // ---------- Golden fish ----------
   const goldenDelay = () => (120 + Math.random() * 180) * 1000 / M.goldenFreq;
 
+  function rollGoldenVariant() {
+    const r = Math.random();
+    const b = (M && M.exoticChanceBonus) || 0;
+    if (r < 0.05 + b * 0.3) return "feathered";
+    if (r < 0.20 + b * 0.7) return "glacier";
+    if (r < 0.35 + b) return "rainbow";
+    return "golden";
+  }
+
   function addBuff(type, name, mult, ms) {
     const until = now() + ms;
     const existing = S.buffs.find(b => b.name === name && b.until > now());
@@ -471,8 +611,15 @@
     else S.buffs.push({ type, name, mult, until });
   }
 
-  function goldenEffect(pos = {}, auto = false, force = null, quiet = false) {
+  function goldenEffect(pos = {}, auto = false, force = null, quiet = false, variant = null) {
     S.stats.goldenClicks++;
+    if (!variant) variant = force === "rush" ? "golden" : (force && ["rainbow", "glacier", "feathered", "golden"].includes(force) ? force : rollGoldenVariant());
+    if (variant !== "golden") S.stats.exoticCatches = (S.stats.exoticCatches || 0) + 1;
+    if (S.shore === "sunnycove") {
+      S.stats.sunnyCatches = (S.stats.sunnyCatches || 0) + 1;
+      checkPassportStamps();
+    }
+
     const season = M.season;
     if (season) {
       S.stats.seasonalCatches++;
@@ -484,27 +631,53 @@
     }
     const d = M.goldenDur;
     const secs = base => Math.round(base * d);
-    const roll = force === "rush" ? 0.5 : Math.random();
     let msg, kind;
-    if (M.aurora && roll < 0.08 && !force) {
-      kind = "aurora";
-      addBuff("prod", "Aurora Blessing", 50, secs(30) * 1000);
-      msg = `<b>Aurora Blessing!</b> The sky lights up: production ×50 for ${secs(30)}s`;
-    } else if (roll < 0.45) {
-      kind = "lucky";
-      const amount = (Math.min(S.fish * 0.15, fishPerSecond(false) * 600) + 13) * M.luckyMult;
+
+    if (variant === "rainbow") {
+      kind = "rainbow";
+      addBuff("prod", "Rainbow Frenzy", 5, secs(25) * 1000);
+      addBuff("click", "Bubble Tap", 10, secs(25) * 1000);
+      msg = `🌈 <b>Rainbow Frenzy!</b> A splash of color: production ×5 and pat power ×10 for ${secs(25)}s!`;
+    } else if (variant === "glacier") {
+      kind = "glacier";
+      const nowMs = now();
+      const activeBuffs = S.buffs.filter(b => b.until > nowMs);
+      if (activeBuffs.length > 0) {
+        const ext = secs(25) * 1000;
+        activeBuffs.forEach(b => { b.until += ext; });
+        msg = `❄️ <b>Glacier Freeze!</b> Time stops on the ice: all active buffs extended by +${secs(25)}s!`;
+      } else {
+        addBuff("prod", "Glacier Surge", 12, secs(30) * 1000);
+        msg = `❄️ <b>Glacier Surge!</b> Crisp polar wind: production ×12 for ${secs(30)}s!`;
+      }
+    } else if (variant === "feathered") {
+      kind = "feathered";
+      S.bonusFeathers = (S.bonusFeathers || 0) + 1;
+      const amount = Math.max(10, fishPerSecond(false) * 600 * M.luckyMult);
       gain(amount);
-      msg = `<b>Lucky Catch!</b> +${fmt(amount)} fish`;
-    } else if (roll < 0.85) {
-      kind = "rush";
-      addBuff("prod", "Cocoa Rush", M.rushMult, secs(77) * 1000);
-      msg = `<b>Cocoa Rush!</b> Everyone's warmed up: production ×${M.rushMult} for ${secs(77)}s`;
+      msg = `🪶 <b>Moult Bounty!</b> A rare golden feather (+1 pending feather) and +${fmt(amount)} fish!`;
     } else {
-      kind = "flurry";
-      addBuff("click", "Flipper Flurry", 77, secs(13) * 1000);
-      msg = `<b>Flipper Flurry!</b> Pats are ×77 for ${secs(13)}s`;
+      const roll = force === "rush" ? 0.5 : Math.random();
+      if (M.aurora && roll < 0.08 && !force) {
+        kind = "aurora";
+        addBuff("prod", "Aurora Blessing", 50, secs(30) * 1000);
+        msg = `<b>Aurora Blessing!</b> The sky lights up: production ×50 for ${secs(30)}s`;
+      } else if (roll < 0.45) {
+        kind = "lucky";
+        const amount = (Math.min(S.fish * 0.15, fishPerSecond(false) * 600) + 13) * M.luckyMult;
+        gain(amount);
+        msg = `<b>Lucky Catch!</b> +${fmt(amount)} fish`;
+      } else if (roll < 0.85) {
+        kind = "rush";
+        addBuff("prod", "Cocoa Rush", M.rushMult, secs(77) * 1000);
+        msg = `<b>Cocoa Rush!</b> Everyone's warmed up: production ×${M.rushMult} for ${secs(77)}s`;
+      } else {
+        kind = "flurry";
+        addBuff("click", "Flipper Flurry", 77, secs(13) * 1000);
+        msg = `<b>Flipper Flurry!</b> Pats are ×77 for ${secs(13)}s`;
+      }
     }
-    bus.emit("golden", { msg, kind, auto, quiet, x: pos.x, y: pos.y });
+    bus.emit("golden", { msg, kind, variant, auto, quiet, x: pos.x, y: pos.y });
     bus.emit("buffs");
     return kind;
   }
@@ -605,6 +778,192 @@
     return fresh;
   }
 
+  // ---------- Shore Passport Stamps ----------
+  function passportProgress(stampId) {
+    const stamp = D.PASSPORT_STAMP_BY_ID[stampId];
+    if (!stamp) return null;
+    const done = (S.shoreStamps || []).includes(stampId);
+    let cur = 0;
+    const target = stamp.target;
+    if (done) {
+      cur = target;
+    } else if (S.migrations < 1) {
+      cur = 0;
+    } else {
+      if (stampId === "home") cur = S.shore === "home" ? totalColony(S) : 0;
+      else if (stampId === "krillbay") cur = S.shore === "krillbay" ? (S.buildings.krill || 0) : 0;
+      else if (stampId === "sunnycove") cur = S.stats.sunnyCatches || 0;
+      else if (stampId === "blizzard") cur = S.shore === "blizzard" ? pendingFeathers() : (S.stats.blizzardMigrateFeathers || 0);
+      else if (stampId === "aurorafields") cur = S.shore === "aurorafields" ? (S.buildings.aurora || 0) : 0;
+      else if (stampId === "quiethollow") cur = S.stats.quietSeconds || 0;
+      else if (stampId === "harbour") cur = S.shore === "harbour" ? totalColony(S) : 0;
+      else if (stampId === "rookery") cur = S.shore === "rookery" ? Object.values(S.research).reduce((a, b) => a + b, 0) : 0;
+    }
+    const frac = done ? 1 : Math.max(0, Math.min(1, cur / target));
+    return { cur, target, done, frac, time: stamp.time || false };
+  }
+
+  function checkPassportStamps() {
+    if (S.migrations < 1) return [];
+    const currentShore = S.shore;
+    if (!currentShore || (S.shoreStamps || []).includes(currentShore)) return [];
+    const p = passportProgress(currentShore);
+    if (p && p.cur >= p.target) {
+      if (!S.shoreStamps) S.shoreStamps = [];
+      if (!S.shoreStampDates) S.shoreStampDates = {};
+      S.shoreStamps.push(currentShore);
+      S.shoreStampDates[currentShore] = now();
+      recompute();
+      const stamp = D.PASSPORT_STAMP_BY_ID[currentShore];
+      bus.emit("structure");
+      bus.emit("passportStamp", { stamp, shore: SHORE_BY_ID[currentShore] });
+      checkAchievements();
+      return [currentShore];
+    }
+    return [];
+  }
+
+  // ---------- Campfire Cooking ----------
+  function recipeCost(r) {
+    if (!r) return Infinity;
+    const base = Math.max(r.minCost, Math.round(fishPerSecond(false) * 60 * r.costMins));
+    return Math.max(r.minCost, Math.round(base * (M && M.cookingCostMult ? M.cookingCostMult : 1)));
+  }
+
+  function recipeUnlocked(r) {
+    if (!r) return false;
+    return S.lifetimeFish >= (r.unlockLifetime || 0);
+  }
+
+  function activeDish() {
+    if (!S.cooking || !S.cooking.id || S.cooking.until <= now()) return null;
+    const r = D.COOKING_RECIPE_BY_ID[S.cooking.id];
+    if (!r) return null;
+    const remaining = Math.max(0, (S.cooking.until - now()) / 1000);
+    return {
+      ...r,
+      remaining,
+      startedAt: S.cooking.startedAt,
+      until: S.cooking.until,
+      frac: Math.max(0, Math.min(1, remaining / r.duration)),
+    };
+  }
+
+  function cookRecipe(id, origin = null) {
+    const r = D.COOKING_RECIPE_BY_ID[id];
+    if (!r || !recipeUnlocked(r)) return false;
+    const cost = recipeCost(r);
+    if (S.fish < cost) return false;
+    S.fish -= cost;
+    const t = now();
+    const durMult = M && M.cookingDurationMult ? M.cookingDurationMult : 1;
+    S.cooking = { id: r.id, until: t + (r.duration * durMult) * 1000, startedAt: t };
+    S.stats.dishesCooked = (S.stats.dishesCooked || 0) + 1;
+    recompute();
+    bus.emit("structure");
+    bus.emit("dishCooked", { recipe: r, cost, until: S.cooking.until, origin });
+    checkAchievements();
+    return true;
+  }
+
+  // ---------- The Ice Hole & Deep-Sea Diving ----------
+  const diveSpotUnlocked = spot => (S.lifetimeFish || 0) >= (spot.unlockLifetime || 0);
+
+  function activeDive() {
+    if (!S.dive || !S.dive.spotId) return null;
+    const spot = D.DIVE_SPOT_BY_ID[S.dive.spotId];
+    if (!spot) return null;
+    const t = now();
+    const ready = S.dive.ready || (S.dive.until > 0 && S.dive.until <= t);
+    const remaining = Math.max(0, Math.ceil((S.dive.until - t) / 1000));
+    return {
+      spot,
+      spotId: S.dive.spotId,
+      startedAt: S.dive.startedAt,
+      until: S.dive.until,
+      ready,
+      remaining,
+      totalDuration: spot.duration,
+      progress: Math.min(1, Math.max(0, 1 - remaining / spot.duration)),
+    };
+  }
+
+  function startDive(spotId, auto = false) {
+    const spot = D.DIVE_SPOT_BY_ID[spotId];
+    if (!spot || !diveSpotUnlocked(spot)) return false;
+    if (activeDive()) return false;
+    const t = now();
+    const durMult = M && M.diveDurationMult ? M.diveDurationMult : 1;
+    S.dive = { spotId, startedAt: t, until: t + (spot.duration * durMult) * 1000, ready: false };
+    save();
+    bus.emit("structure");
+    bus.emit("diveStarted", { spot, auto });
+    return true;
+  }
+
+  function claimDive(auto = false) {
+    const active = activeDive();
+    if (!active || !active.ready) return null;
+    if (!S.relics) S.relics = {};
+    const pool = active.spot.relics || [];
+    const unowned = pool.filter(id => !S.relics[id]);
+    let picked = null;
+    let bonusFish = 0;
+    if (unowned.length > 0) {
+      picked = unowned[Math.floor(Math.random() * unowned.length)];
+      S.relics[picked] = 1;
+    } else {
+      const unmaxed = pool.filter(id => (S.relics[id] || 0) < 3);
+      if (unmaxed.length > 0) {
+        picked = unmaxed[Math.floor(Math.random() * unmaxed.length)];
+        S.relics[picked] = (S.relics[picked] || 0) + 1;
+      } else {
+        // All relics in this dive spot are 3-star: give generous bonus fish
+        bonusFish = Math.max(500, Math.round(fishPerSecond() * 900));
+        S.fish += bonusFish;
+        S.runFish += bonusFish;
+        S.lifetimeFish += bonusFish;
+      }
+    }
+    S.stats.divesCompleted = (S.stats.divesCompleted || 0) + 1;
+    S.dive = { spotId: "", startedAt: 0, until: 0, ready: false };
+    recompute();
+    checkAchievements();
+    save();
+    const relic = picked ? D.RELIC_BY_ID[picked] : null;
+    const level = picked ? S.relics[picked] : 0;
+    const result = { spot: active.spot, relic, level, bonusFish, auto };
+    bus.emit("structure");
+    bus.emit("relicFound", result);
+    return result;
+  }
+
+  const relicLevel = id => (S.relics && S.relics[id]) || 0;
+
+  function diverPickSpot() {
+    const strat = S.diverStrategy || "hunter";
+    const available = D.DIVE_SPOTS.filter(s => diveSpotUnlocked(s));
+    if (!available.length) return null;
+
+    if (strat === "shallow") return available.some(s => s.id === "shallow") ? "shallow" : available[0].id;
+    if (strat === "cavern") return available.some(s => s.id === "cavern") ? "cavern" : available[available.length - 1].id;
+    if (strat === "abyss") return available.some(s => s.id === "abyss") ? "abyss" : available[available.length - 1].id;
+    if (strat === "deepest") return available[available.length - 1].id;
+
+    // Default: "hunter" (finds spot with most unowned/unmaxed relics)
+    let bestSpot = available[available.length - 1];
+    let bestUnmaxed = -1;
+    for (const spot of available) {
+      const pool = spot.relics || [];
+      const unmaxedCount = pool.filter(rId => (relicLevel(rId) < 3)).length;
+      if (unmaxedCount > bestUnmaxed) {
+        bestUnmaxed = unmaxedCount;
+        bestSpot = spot;
+      }
+    }
+    return bestSpot.id;
+  }
+
   // ---------- Helpers (automation) ----------
   const helperTimers = {};
   function bestBuilding() {
@@ -617,19 +976,122 @@
     return best;
   }
 
-  // Foreman Waddles: saves up for the best value when it's under ~30s of income away, otherwise buys the
-  // best value he can afford right now (so cheaper members keep getting bought while a big one is far off).
+  function buildingDeltaFps(b) {
+    const owned = S.buildings[b.id] || 0;
+    const currentUnitFps = M.bFps[b.id];
+    const nextOwned = owned + 1;
+    const msCrossed = milestonesReached(nextOwned) > milestonesReached(owned);
+    if (msCrossed) {
+      return currentUnitFps * (M.milestoneMult * nextOwned - owned);
+    }
+    return currentUnitFps;
+  }
+
+  function upgradeDeltaFps(u) {
+    if (!u) return 0;
+    if (u.kind === "building" && u.building) {
+      return (M.bFps[u.building] || 0) * (S.buildings[u.building] || 0);
+    }
+    if (u.kind === "synergy" && u.pair) {
+      const [a, b] = u.pair;
+      const aBoost = 0.02 * Math.min(100, S.buildings[b] || 0) * (M.synergy || 1);
+      const bBoost = 0.005 * Math.min(100, S.buildings[a] || 0) * (M.synergy || 1);
+      return ((M.bFps[a] || 0) * (S.buildings[a] || 0) * aBoost) +
+             ((M.bFps[b] || 0) * (S.buildings[b] || 0) * bBoost);
+    }
+    if (u.kind === "global" && u.pct) {
+      return fishPerSecond(false) * (u.pct / 100);
+    }
+    if (u.kind === "scrapbook") {
+      const per = [0.005, 0.01, 0.02][u.id.split("_")[1]] || 0.01;
+      return fishPerSecond(false) * per * S.achievements.length;
+    }
+    return 1e-4;
+  }
+
+  // Shopkeeper Pip: picks upgrades based on player strategy ("impact" [default], "efficiency", "cheapest")
+  const SHOPKEEPER_SAVE_SECS = 30;
+  function shopkeeperPick() {
+    const strat = S.shopkeeperStrategy || "impact";
+    const available = availableUpgrades();
+    if (!available.length) return null;
+
+    if (strat === "cheapest") {
+      const first = available[0];
+      return S.fish >= upgradeCost(first) ? first : null;
+    }
+
+    if (strat === "efficiency") {
+      let best = null, bestScore = Infinity;
+      let aff = null, affScore = Infinity;
+      for (const u of available) {
+        const cost = upgradeCost(u);
+        const delta = upgradeDeltaFps(u);
+        const score = cost / Math.max(1e-9, delta);
+        if (score < bestScore) { bestScore = score; best = u; }
+        if (cost <= S.fish && score < affScore) { affScore = score; aff = u; }
+      }
+      if (!best || best === aff) return aff;
+      const gap = upgradeCost(best) - S.fish;
+      return gap / Math.max(1e-9, fishPerSecond(false)) <= SHOPKEEPER_SAVE_SECS ? null : aff;
+    }
+
+    // Default: "impact" (prioritizes raw highest boost to total production)
+    let best = null, bestDelta = -1;
+    let aff = null, affDelta = -1;
+    for (const u of available) {
+      const cost = upgradeCost(u);
+      const delta = upgradeDeltaFps(u);
+      if (delta > bestDelta) { bestDelta = delta; best = u; }
+      if (cost <= S.fish && delta > affDelta) { affDelta = delta; aff = u; }
+    }
+    if (!best || best === aff) return aff;
+    const gap = upgradeCost(best) - S.fish;
+    return gap / Math.max(1e-9, fishPerSecond(false)) <= SHOPKEEPER_SAVE_SECS ? null : aff;
+  }
+
+  // Foreman Waddles: picks colony members based on the player's chosen strategy
+  // - "impact" (default): prioritizes whichever member makes the biggest difference to production
+  // - "efficiency": best value for money (fastest payback / ROI)
+  // - "cheapest": buys the cheapest affordable member to sweep up milestone bonuses
   const FOREMAN_SAVE_SECS = 30;
   function foremanPick() {
-    let best = null, bestScore = Infinity, aff = null, affScore = Infinity;
+    const strat = S.foremanStrategy || "impact";
+    if (strat === "cheapest") {
+      let cheap = null, minCost = Infinity;
+      BUILDINGS.forEach((b, i) => {
+        if (!buildingVisible(b, i)) return;
+        const cost = costOf(b, S.buildings[b.id], 1);
+        if (cost <= S.fish && cost < minCost) { minCost = cost; cheap = b; }
+      });
+      return cheap;
+    }
+
+    if (strat === "efficiency" || strat === "balanced") {
+      let best = null, bestScore = Infinity, aff = null, affScore = Infinity;
+      BUILDINGS.forEach((b, i) => {
+        if (!buildingVisible(b, i)) return;
+        const cost = costOf(b, S.buildings[b.id], 1);
+        const score = cost / Math.max(1e-9, buildingFps(b.id));
+        if (score < bestScore) { bestScore = score; best = b; }
+        if (cost <= S.fish && score < affScore) { affScore = score; aff = b; }
+      });
+      if (!best || best === aff) return aff;
+      const gap = costOf(best, S.buildings[best.id], 1) - S.fish;
+      return gap / Math.max(1e-9, fishPerSecond(false)) <= FOREMAN_SAVE_SECS ? null : aff;
+    }
+
+    // Default: "impact"
+    let best = null, bestDelta = -1;
+    let aff = null, affDelta = -1;
     BUILDINGS.forEach((b, i) => {
       if (!buildingVisible(b, i)) return;
       const cost = costOf(b, S.buildings[b.id], 1);
-      const score = cost / Math.max(1e-9, buildingFps(b.id));
-      if (score < bestScore) { bestScore = score; best = b; }
-      if (cost <= S.fish && score < affScore) { affScore = score; aff = b; }
+      const delta = buildingDeltaFps(b);
+      if (delta > bestDelta) { bestDelta = delta; best = b; }
+      if (cost <= S.fish && delta > affDelta) { affDelta = delta; aff = b; }
     });
-    if (!best || best === aff) return best;
+    if (!best || best === aff) return aff;
     const gap = costOf(best, S.buildings[best.id], 1) - S.fish;
     return gap / Math.max(1e-9, fishPerSecond(false)) <= FOREMAN_SAVE_SECS ? null : aff;
   }
@@ -641,7 +1103,14 @@
       if (helperTimers[h.id] < h.every) return;
       helperTimers[h.id] = 0;
       let did = 0;
-      if (h.id === "shopkeeper") did = buyAllUpgrades(null, true);
+      if (h.id === "shopkeeper") {
+        for (let k = 0; k < 10; k++) {
+          const u = shopkeeperPick();
+          if (!u || !buyUpgrade(u.id, null, true)) break;
+          did++;
+        }
+        if (did) bus.emit("structure");
+      }
       if (h.id === "foreman") {
         for (let k = 0; k < 25; k++) {
           const b = foremanPick();
@@ -662,6 +1131,19 @@
       if (h.id === "planner" && pendingFeathers() >= Math.max(1, S.feathersEarned)) {
         did = doMigrate(S.nextShore, true) ? 1 : 0;
       }
+      if (h.id === "diver") {
+        const active = activeDive();
+        if (active && active.ready) {
+          claimDive(true);
+          did++;
+        }
+        if (!activeDive()) {
+          const spotId = diverPickSpot();
+          if (spotId && startDive(spotId, true)) {
+            did++;
+          }
+        }
+      }
       if (did) bus.emit("helperAct", { h, count: did });
     });
   }
@@ -679,6 +1161,20 @@
     }
     const t = now();
     if (S.buffs.some(b => b.until <= t)) { S.buffs = S.buffs.filter(b => b.until > t); bus.emit("buffs"); }
+    if (S.cooking && S.cooking.id && S.cooking.until <= t) {
+      const finishedDish = D.COOKING_RECIPE_BY_ID[S.cooking.id];
+      S.cooking = { id: "", until: 0, startedAt: 0 };
+      recompute();
+      bus.emit("structure");
+      bus.emit("dishFinished", { recipe: finishedDish });
+    }
+    if (S.dive && S.dive.spotId && S.dive.until <= t && !S.dive.ready) {
+      S.dive.ready = true;
+      bus.emit("structure");
+      bus.emit("diveReady", { spot: D.DIVE_SPOT_BY_ID[S.dive.spotId] });
+    }
+    if (S.shore === "quiethollow") S.stats.quietSeconds = (S.stats.quietSeconds || 0) + dt;
+    checkPassportStamps();
     runHelpers(dt);
     histTimer += dt;
     if (histTimer >= 60) {
@@ -700,6 +1196,34 @@
     // Upgrades add to the base pace and Quiet Hollow doubles the total.
     const firstWeek = away < 7 * 86400;
     if (firstWeek && away >= 86400) S.stats.homecomings += 1;   // a day or more away, back before the first week is up
+    if (S.shore === "quiethollow") S.stats.quietSeconds = (S.stats.quietSeconds || 0) + Math.min(away, 3600);
+    if (helperOn("diver") && away >= 60) {
+      let simAway = Math.min(away, cap);
+      for (let cycles = 0; cycles < 10; cycles++) {
+        const active = activeDive();
+        if (active && active.ready) {
+          claimDive(true);
+        }
+        if (!activeDive()) {
+          const spotId = diverPickSpot();
+          if (!spotId) break;
+          const spot = D.DIVE_SPOT_BY_ID[spotId];
+          const dur = spot.duration * (M && M.diveDurationMult ? M.diveDurationMult : 1);
+          if (simAway >= dur) {
+            simAway -= dur;
+            startDive(spotId, true);
+            S.dive.until = now() - simAway * 1000;
+            S.dive.ready = true;
+          } else {
+            startDive(spotId, true);
+            S.dive.until = now() + (dur - simAway) * 1000;
+            break;
+          }
+        } else {
+          break;
+        }
+      }
+    }
     const eff = (M.offlineEff + (firstWeek ? 0.25 : 0)) * M.offlineMult;
     const earned = fishPerSecond(false) * Math.min(away, cap) * eff;
     S.lastTick = now();
@@ -800,6 +1324,7 @@
     const s = freshState();
     ["fish", "runFish", "lifetimeFish", "feathersEarned", "migrations"].forEach(k => { s[k] = num(data[k]); });
     s.migrations = Math.floor(s.migrations);
+    s.bonusFeathers = Math.floor(Math.max(0, num(data.bonusFeathers)));
     BUILDINGS.forEach(b => { s.buildings[b.id] = Math.floor(num(obj(data.buildings)[b.id])); });
     s.upgrades = idList(data.upgrades, UP_BY_ID);
     const levels = (v, list) => {   // {id: level} limited to known ids and each one's max level
@@ -811,6 +1336,13 @@
     s.research = levels(data.research, RESEARCH);
     const hIn = obj(data.helpers);
     HELPERS.forEach(h => { if (h.id in hIn) s.helpers[h.id] = hIn[h.id] === true; });
+    const fStrat = data.foremanStrategy === "balanced" ? "efficiency" : data.foremanStrategy;
+    s.foremanStrategy = (typeof fStrat === "string" && FOREMAN_STRATEGY_BY_ID[fStrat])
+      ? fStrat : "impact";
+    s.shopkeeperStrategy = (typeof data.shopkeeperStrategy === "string" && SHOPKEEPER_STRATEGY_BY_ID[data.shopkeeperStrategy])
+      ? data.shopkeeperStrategy : "impact";
+    s.diverStrategy = (typeof data.diverStrategy === "string" && D.DIVER_STRATEGY_BY_ID[data.diverStrategy])
+      ? data.diverStrategy : "hunter";
     // Derived from what's owned, not trusted from the file
     s.feathersSpent = treeSpentOn(s.heritage) + helpersSpentOn(s.helpers);
     s.achievements = idList(data.achievements, Object.fromEntries(ACHIEVEMENTS.map(a => [a.id, true])));
@@ -822,6 +1354,29 @@
     if (!s.shoresVisited.includes("home")) s.shoresVisited.unshift("home");
     s.shore = SHORE_BY_ID[data.shore] ? data.shore : "home";
     s.nextShore = SHORE_BY_ID[data.nextShore] ? data.nextShore : "home";
+    s.shoreStamps = idList(data.shoreStamps, SHORE_BY_ID);
+    const stDates = obj(data.shoreStampDates);
+    s.shoreStamps.forEach(id => { const t = num(stDates[id]); s.shoreStampDates[id] = t > 0 ? t : now(); });
+    const cook = obj(data.cooking);
+    if (cook.id && D.COOKING_RECIPE_BY_ID[cook.id] && num(cook.until) > now()) {
+      s.cooking = { id: cook.id, until: num(cook.until), startedAt: num(cook.startedAt) };
+    } else {
+      s.cooking = { id: "", until: 0, startedAt: 0 };
+    }
+    const relIn = obj(data.relics);
+    s.relics = {};
+    D.RELICS.forEach(r => {
+      const lvl = Math.floor(num(relIn[r.id]));
+      if (lvl >= 1) s.relics[r.id] = Math.min(3, lvl);
+    });
+    const dv = obj(data.dive);
+    if (dv.spotId && D.DIVE_SPOT_BY_ID[dv.spotId] && num(dv.until) > 0) {
+      const t = now();
+      const ready = dv.ready === true || num(dv.until) <= t;
+      s.dive = { spotId: dv.spotId, startedAt: num(dv.startedAt), until: num(dv.until), ready };
+    } else {
+      s.dive = { spotId: "", startedAt: 0, until: 0, ready: false };
+    }
     s.seasonalUnlocks = idList(data.seasonalUnlocks, SEASON_BY_ID);
     s.napStars = (Array.isArray(data.napStars) ? data.napStars : []).slice(0, NAP_STARS).map(num);
     const ns = obj(data.napStreak), day = v => (typeof v === "string" && /^\d{4}-\d\d-\d\d$/.test(v) ? v : "");
@@ -909,6 +1464,7 @@
     S = newState;
     S.buffs = [];
     S.lastTick = now();
+    manualPatTimes.length = 0;
     savingBlocked = false;
     recompute();
     bus.emit("stateReplaced");
@@ -933,13 +1489,18 @@
     researchLevel, researchCost, researchUnlocked, upgradeCost, currentSeason,
     buffMult, setNapping, napMult, fishPerSecond, buildingFps, clickPower, costOf, maxAffordable, previewBuy, buildingVisible,
     featherTotalFor, pendingFeathers, nextFeatherAt, availableUpgrades, availableShores, bestBuilding,
-    gain, clickPenguin, buyBuilding, buyUpgrade, buyAllUpgrades, buyResearch, learnNode, refundTree,
-    hireHelper, toggleHelper, doMigrate, setNextShore,
+    gain, clickPenguin, patsPerSecond, warmthLevel, WARMTH_BONUS, buyBuilding, buyUpgrade, buyAllUpgrades, buyResearch, learnNode, refundTree,
+    hireHelper, toggleHelper, setForemanStrategy, foremanStrategy: () => S.foremanStrategy || "impact",
+    setShopkeeperStrategy, shopkeeperStrategy: () => S.shopkeeperStrategy || "impact",
+    setDiverStrategy, diverStrategy: () => S.diverStrategy || "hunter", diverPickSpot, doMigrate, setNextShore,
     cosmeticItem, cosmeticUnlocked, setOutfit, addNapTime, napStreakNow,
     NAME_SLOTS, cleanName, setName, residentNames, playerNames, suggestName, ensureDefaultNames,
-    goldenDelay, goldenEffect,
+    goldenDelay, goldenEffect, rollGoldenVariant,
     dayKey, ensureLetters, letterProgress, todaysLetters, letterReward, claimLetter, claimLetterBonus,
     checkAchievements, clearNewMemories, runHelpers, tick, applyOffline,
+    passportProgress, checkPassportStamps,
+    recipeCost, recipeUnlocked, activeDish, cookRecipe,
+    diveSpotUnlocked, activeDive, startDive, claimDive, relicLevel,
     encodeSave, decodeSave, save, load, SaveError, transferJSON, fromTransferJSON, nextGoal, memoryProgress, nearestMemories, secsToNewDay,
   });
   PI.engine = E;
