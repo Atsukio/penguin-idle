@@ -91,154 +91,15 @@
     if (currentTab === "stats" && full && M_UI.renderStats) M_UI.renderStats();
   }
 
-  function updateBadges() {
-    setText($("achCount"), `${S().achievements.length}/${D.ACHIEVEMENTS.length}`);
-    const nNew = S().achNew.length;
-    setText($("achNew"), `${nNew} new`);
-    $("achNew").classList.toggle("hidden", !nNew || currentTab === "achievements");
-
-    const letters = S().letters.list;
-    const today = E.todaysLetters();
-    const bonusDue = today.length && today.every(l => l.claimed) && !S().letters.bonus ? 1 : 0;
-    const left = letters.filter(l => !l.claimed).length + bonusDue;
-    const claimable = letters.filter(l => !l.claimed && E.letterProgress(l) >= l.target).length + bonusDue;
-    const lb = $("homeBadge");
-    setText(lb, left ? String(left) : "");
-    lb.classList.toggle("hidden", !left);
-    lb.classList.toggle("ready", claimable > 0);
-
-    const claimed = today.filter(l => l.claimed).length;
-    lb.style.setProperty("--done", String(today.length ? Math.round((claimed / today.length) * 100) : 0));
-    lb.classList.toggle("full", !!today.length && claimed === today.length);
-
-    const migGood = panels().migrateIsGood ? panels().migrateIsGood() : false;
-    $("migrateBadge").classList.toggle("hidden", !migGood);
-    const news = hasNews();
-    $("newsBadge").classList.toggle("hidden", !news);
-    $("whatsNewBtn").classList.toggle("has-news", news);
-  }
-  const hasNews = () => S().seenVersion !== D.GAME_VERSION;
-
-  // Locked memories over halfway, recomputed about every two seconds rather than every frame
-  let nearCache = [], nearCacheAt = -Infinity;
-  function nearMemoryList() {
-    const t = E.now();
-    if (t - nearCacheAt > 2000) { nearCacheAt = t; nearCache = E.nearestMemories(99, 0.5); }
-    return nearCache.filter(m => !S().achievements.includes(m.a.id));
-  }
-
-  function renderLetterReset() {
-    const secs = E.secsToNewDay(new Date(E.now()));
-    const h = Math.floor(secs / 3600), mi = Math.floor((secs % 3600) / 60);
-    const left = `${h}h ${String(mi).padStart(2, "0")}m`;
-    setText($("letterReset"), `New letters in ${left}`);
-    const top = $("resetIn");
-    if (!top) return;
-    setText(top, `Letters reset in ${left}`);
-    if (!top.dataset.bound) {
-      top.dataset.bound = "1";
-      top.setAttribute("role", "button");
-      top.setAttribute("tabindex", "0");
-      top.addEventListener("click", () => selectTab("home", true));
-      top.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectTab("home", true); } });
-    }
-  }
-
-  function renderNextGoal() {
-    const g = E.nextGoal(), el = $("nextGoal");
-    if (!el) return;
-    const m = nearMemoryList().find(x => x.frac >= 0.8) || null;
-    if (!el.dataset.bound) {
-      el.dataset.bound = "1";
-      el.addEventListener("click", () => { if (el.classList.contains("clickable")) selectTab("achievements", true); });
-    }
-    el.classList.toggle("clickable", !!m);
-    el.classList.toggle("hidden", !g && !m);
-    if (!g && !m) return;
-    const eta = !g || g.secs == null ? "" : g.secs < 1 ? " · any moment" : g.secs > 86400 * 2 ? "" : ` · about ${fmtTime(Math.max(1, g.secs))}`;
-    const mem = m ? `📔 ${m.a.name} ${Math.floor(m.frac * 100)}%` : "";
-    setText(el, [g ? `Next: ${g.icon} ${g.name} in 🐟 ${fmt(Math.ceil(g.need))}${eta}` : "", mem].filter(Boolean).join(" · "));
-    el.title = [g ? `${g.name} costs 🐟 ${fmt(g.cost)}` : "", m ? `Nearly a new memory: ${m.a.name}. ${m.a.desc}` : ""].filter(Boolean).join(" · ");
-  }
-
-  function bumpCounter() {
-    const p = $("fish") && $("fish").parentElement;
-    if (p) { p.classList.remove("bump"); void p.offsetWidth; p.classList.add("bump"); }
-  }
-
-  // Smoothly rolling fish counter: eases toward the real value instead of jumping
-  let shownFish = 0;
-  function tickCounter() {
-    renderLetterReset();
-    const real = S().fish;
-    shownFish = Math.abs(real - shownFish) / Math.max(1, real) < 0.002 || S().settings.reduceMotion || PI.powerSaving ? real : shownFish + (real - shownFish) * 0.35;
-    setText($("fish"), fmt(Math.floor(shownFish)));
-  }
-
-  function renderWarmth() {
-    const w = E.warmthLevel(), box = $("warmth");
-    if (!box) return;
-    box.classList.toggle("on", w > 0);
-    box.classList.toggle("toasty", w >= 1);
-    const fill = $("warmthFill");
-    if (fill) fill.style.width = `${Math.round(w * 100)}%`;
-    setText($("warmthLabel"), w >= 1 ? `Toasty! +${Math.round(E.WARMTH_BONUS * 100)}% pats` : w > 0 ? `Warming up +${Math.round(w * E.WARMTH_BONUS * 100)}%` : "");
-  }
-
-  function tick() {
-    tickCounter();
-    setText($("fps"), fmt(E.fishPerSecond()));
-    setText($("clickPower"), fmt(E.clickPower()));
-    const pps = E.patsPerSecond ? E.patsPerSecond() : 0;
-    setText($("patsPerSec"), fmt(pps));
-    const rateEl = $("patRate");
-    if (rateEl) rateEl.classList.toggle("active", pps > 0);
-    renderWarmth();
-    setText($("featherTotal"), fmt(S().feathersEarned));
-    setText($("featherBonus"), M().feather >= 11 ? `×${fmt(M().feather)}` : `+${fmt((M().feather - 1) * 100)}%`);
-    $("featherBadge").classList.toggle("hidden", S().feathersEarned === 0 && E.pendingFeathers() === 0);
-    const title = `${fmt(Math.floor(S().fish))} fish · Penguin Idle`;
-    if (document.title !== title) document.title = title;
-    renderBuffs();
-    renderTab(false);
-    if (dialogs().renderSheet) dialogs().renderSheet();
-  }
-
-  function renderBuffs() {
-    const now = E.now();
-    const html = S().buffs.filter(b => b.until > now)
-      .map(b => `<span class="buff">${b.name} ×${b.mult} · ${Math.ceil((b.until - now) / 1000)}s</span>`).join("");
-    const buffsEl = $("buffs");
-    if (buffsEl && buffsEl.innerHTML !== html) buffsEl.innerHTML = html;
-  }
-
-  function slowTick() {
-    const M_UI = memoriesUI(), P = panels(), A = activities(), S_SC = scene();
-    if (M_UI.renderNapStars) M_UI.renderNapStars();
-    if (currentTab === "colony" && P.renderUpgrades) P.renderUpgrades();
-    if (currentTab === "home") {
-      if (A.renderKettle) A.renderKettle();
-      if (A.renderDiving) A.renderDiving();
-    }
-    if (currentTab === "stats" && M_UI.renderStats) M_UI.renderStats();
-    const active = E.activeDish ? E.activeDish() : null;
-    const sceneKettle = $("sceneKettle");
-    if (sceneKettle) sceneKettle.classList.toggle("simmering", !!active);
-    if (A.updateSceneIceHole) A.updateSceneIceHole();
-    updateBadges();
-    renderNextGoal();
-    if (S_SC.rebuildScene) S_SC.rebuildScene();
-    if (S_SC.updateBasket) S_SC.updateBasket();
-    renderSeasonBadge();
-  }
-
-  function renderSeasonBadge() {
-    const se = M().season;
-    const b = $("seasonBadge");
-    if (!b) return;
-    b.classList.toggle("hidden", !se);
-    if (se) { setText(b, `${se.icon} ${se.name}`); b.title = se.desc; }
-  }
+  const topbar = () => PI.uiTopbar || {};
+  const updateBadges = () => topbar().updateBadges && topbar().updateBadges();
+  const renderLetterReset = () => topbar().renderLetterReset && topbar().renderLetterReset();
+  const renderNextGoal = () => topbar().renderNextGoal && topbar().renderNextGoal();
+  const bumpCounter = () => topbar().bumpCounter && topbar().bumpCounter();
+  const tick = () => topbar().tick && topbar().tick();
+  const slowTick = () => topbar().slowTick && topbar().slowTick();
+  const getShownFish = () => (topbar().shownFish != null ? topbar().shownFish : 0);
+  const setShownFish = v => { if (topbar().shownFish != null) topbar().shownFish = v; };
 
   // ---------- Structural refresh (event-driven) ----------
   function refreshStructure() {
@@ -264,138 +125,8 @@
     renderTab(false);
   }
 
-  function wire() {
-    const bus = PI.bus, P = panels(), A = activities(), S_SC = scene();
-    bus.on("structure", refreshStructure);
-    bus.on("buffs", () => P.refreshBuildings && P.refreshBuildings());
-    bus.on("stateReplaced", () => {
-      shownFish = S().fish;
-      if (S_SC.rebuildScene) S_SC.rebuildScene(true);
-      renderTab(true);
-      if (S_SC.fillFriends) S_SC.fillFriends();
-    });
-    bus.on("names", () => {
-      if (S_SC.applyNames) S_SC.applyNames();
-      if (S_SC.fillFriends) S_SC.fillFriends();
-    });
-    bus.on("letters", () => { if (currentTab === "home" && P.renderLetters) P.renderLetters(); updateBadges(); });
-    bus.on("outfit", () => { if (currentTab === "home" && P.renderWardrobe) P.renderWardrobe(); });
-    bus.on("buyBuilding", d => S_SC.arrival && S_SC.arrival(d.id));
-    bus.on("milestone", d => toast(`<b>Milestone!</b> ${d.b.plural} now catch ${d.mult === 2 ? "twice" : `${+d.mult.toFixed(2)}×`} as many fish.`));
-    bus.on("buyAll", d => toast(`🛍️ Bought <b>${d.count}</b> upgrade${d.count > 1 ? "s" : ""}.`));
-    bus.on("golden", d => {
-      if (d.quiet) return;
-      const vName = d.variant === "rainbow" ? "a rainbow fish"
-                  : d.variant === "glacier" ? "a glacier fish"
-                  : d.variant === "feathered" ? "a feathered fish"
-                  : "a golden fish";
-      toast(d.auto ? `📯 Lookout Lumi caught ${vName}! ${d.msg}` : d.msg);
-    });
-    bus.on("achievements", list => queueMemories(list));
-    bus.on("napStreak", ns => toast(ns.mask
-      ? "😴 <b>7 nap days in a row!</b> The Sleep Mask is in your wardrobe."
-      : `😴 <b>Nap streak: ${ns.count} day${ns.count === 1 ? "" : "s"}</b>${ns.best < 7 ? ` · ${7 - ns.count} more for the Sleep Mask` : ""}`));
-    bus.on("respec", () => toast("🪶 <b>Feathers refunded.</b> Plant your tree however you like."));
-    bus.on("hireHelper", d => toast(`${d.h.icon} <b>${d.h.name}</b> has joined the colony!`));
-    bus.on("passportStamp", d => {
-      const shName = (d.shore && d.shore.name) || (D.SHORE_BY_ID[d.stamp.shoreId] && D.SHORE_BY_ID[d.stamp.shoreId].name) || "";
-      toast(`🛂 <b>Passport Stamped!</b> ${d.stamp.icon} <b>${d.stamp.name}</b> (${shName}): ${d.stamp.rewardDesc}`);
-      if (currentTab === "heritage" && P.renderPassport) P.renderPassport();
-    });
-    bus.on("dishCooked", d => {
-      toast(`${d.recipe.icon} <b>${d.recipe.name}</b> is simmering over the campfire! ${d.recipe.effectDesc}`);
-      if (currentTab === "home" && A.renderKettle) A.renderKettle();
-      const sceneKettle = $("sceneKettle");
-      if (sceneKettle) sceneKettle.classList.add("simmering");
-    });
-    bus.on("dishFinished", d => {
-      if (d.recipe) toast(`🥣 The pot of <b>${d.recipe.name}</b> has been enjoyed by the colony.`);
-      if (currentTab === "home" && A.renderKettle) A.renderKettle();
-      const sceneKettle = $("sceneKettle");
-      if (sceneKettle) sceneKettle.classList.remove("simmering");
-    });
-    bus.on("diveStarted", d => {
-      toast(`🤿 Diver plunged into the <b>${d.spot.name}</b>!`, 3500);
-      if (currentTab === "home" && A.renderDiving) A.renderDiving();
-      if (A.updateSceneIceHole) A.updateSceneIceHole();
-    });
-    bus.on("diveReady", d => {
-      toast(`🤿 <b>Diver Returned!</b> Resurfaced from the ${d.spot.name}. Tap the Ice Hole or visit Home to collect!`);
-      if (currentTab === "home" && A.renderDiving) A.renderDiving();
-      if (A.updateSceneIceHole) A.updateSceneIceHole();
-    });
-    bus.on("relicFound", d => {
-      if (currentTab === "home") {
-        if (A.renderDiving) A.renderDiving();
-        if (A.renderRelicShelf) A.renderRelicShelf();
-      }
-      if (A.updateSceneIceHole) A.updateSceneIceHole();
-    });
-    bus.on("letterClaimed", d => toast(`💌 You wrote back to <b>${d.l.sender}</b>. +${fmt(d.reward)} fish`));
-    bus.on("letterBonus", d => toast(`📦 <b>Care package!</b> Production ×7 for ${d.secs}s.`));
-    bus.on("seasonUnlock", d => toast(`${d.season.icon} <b>${d.season.name} gift!</b> New in your wardrobe: ${d.item.name}.`));
-    bus.on("migrate", d => toast(d.auto
-      ? `🗓️ <b>Planner Pem</b> led the colony to ${d.shore.icon} ${d.shore.name}. +🪶 ${fmt(d.gained)}`
-      : `<b>Welcome to ${d.shore.icon} ${d.shore.name}!</b> The colony settles in with 🪶 ${fmt(d.feathers)} feathers.`));
-  }
-
-  // Patting interaction wiring
-  const STROKE_PX = 40;
-  const STROKE_GAP = 70;
-  const HOLD_DELAY = 450;
-  const HOLD_EVERY = 200;
-  function wirePatting(peng) {
-    if (!peng) return;
-    let active = null;
-    const pat = (pt, how) => E.clickPenguin(pt, false, how);
-    const stopHold = () => { if (active) { clearTimeout(active.holdTimer); clearInterval(active.holdTimer); } };
-    const startHold = () => {
-      stopHold();
-      if (!S().settings.holdToPat) return;
-      active.holdTimer = setTimeout(() => {
-        if (!active) return;
-        active.holdTimer = setInterval(() => {
-          if (!active) return;
-          active.lastPat = performance.now();
-          pat({ x: active.x, y: active.y }, "hold");
-        }, HOLD_EVERY);
-      }, HOLD_DELAY);
-    };
-    const end = e => {
-      if (!active || (e && e.pointerId !== active.id)) return;
-      stopHold();
-      active = null;
-      peng.classList.remove("patting", "rub-l", "rub-r");
-    };
-    peng.addEventListener("pointerdown", e => {
-      if (e.button !== 0 || active) return;
-      active = { id: e.pointerId, x: e.clientX, y: e.clientY, travel: 0, lastPat: performance.now(), holdTimer: 0 };
-      try { peng.setPointerCapture(e.pointerId); } catch (_) { /* not supported */ }
-      peng.classList.add("patting");
-      pat({ x: e.clientX, y: e.clientY }, "tap");
-      startHold();
-    });
-    peng.addEventListener("pointermove", e => {
-      if (!active || e.pointerId !== active.id) return;
-      const dx = e.clientX - active.x;
-      active.travel += Math.hypot(dx, e.clientY - active.y);
-      active.x = e.clientX; active.y = e.clientY;
-      if (Math.abs(dx) > 2) {
-        peng.classList.toggle("rub-r", dx > 0);
-        peng.classList.toggle("rub-l", dx < 0);
-      }
-      if (active.travel < STROKE_PX) return;
-      startHold();
-      const t = performance.now();
-      if (t - active.lastPat < STROKE_GAP) return;
-      active.travel = 0;
-      active.lastPat = t;
-      if (!peng.classList.contains("rub-l") && !peng.classList.contains("rub-r")) peng.classList.add("rub-r");
-      pat({ x: e.clientX, y: e.clientY }, "rub");
-    });
-    ["pointerup", "pointercancel", "lostpointercapture"].forEach(ev => peng.addEventListener(ev, end));
-    peng.addEventListener("click", e => { if (e.detail === 0) pat(pointFrom(e, peng), "tap"); });
-  }
+  const wire = () => PI.uiInteractions && PI.uiInteractions.wire();
+  const wirePatting = peng => PI.uiInteractions && PI.uiInteractions.wirePatting(peng);
 
   function init() {
     const P = panels(), A = activities(), M_UI = memoriesUI(), S_SC = scene();
@@ -497,6 +228,10 @@
     setBuyAmount,
     pointFrom,
     isTouch,
+    setShownFish: v => { shownFish = v; },
+    renderTab,
+    refreshStructure,
+    updateBadges,
 
     // Dialogs delegation
     openModal,

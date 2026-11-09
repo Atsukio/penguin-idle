@@ -28,6 +28,8 @@ Math.random = () => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (
 globalThis.PI = {};
 require(path.join(__dirname, "../src/data.js"));
 require(path.join(__dirname, "../src/engine.js"));
+require(path.join(__dirname, "../src/engine-math.js"));
+require(path.join(__dirname, "../src/engine-actions.js"));
 require(path.join(__dirname, "../src/engine-save.js"));
 require(path.join(__dirname, "../src/engine-helpers.js"));
 require(path.join(__dirname, "../src/engine-progress.js"));
