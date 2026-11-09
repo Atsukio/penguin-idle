@@ -66,6 +66,9 @@ src/
 ├── engine-save.js          Save/load persistence, localStorage, FNV-1a checksums,
 │                           schema migration pipeline, import/export validation
 ├── engine-helpers.js       AI algorithms for automated helpers (Pip, Barnaby, Marina)
+├── engine-progress.js      Memory milestones progress and shore passport stamp checks
+├── engine-events.js        Golden fish variants, daily mailbox letters, wardrobe & streaks
+├── engine-activities.js    Campfire kettle recipe costs & deep-sea diving calculations
 ├── scene.js                Canvas scenery, day/night weather cycles, animated props,
 │                           resident waddlers, speech bubble chatter
 ├── audio.js                Procedurally synthesized Web Audio SFX and continuous

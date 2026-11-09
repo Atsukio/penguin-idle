@@ -75,6 +75,9 @@ src/data.js           What's new and every table: colony, upgrades, research, tr
 src/engine.js         game state, maths, and actions (no DOM; also runs in Node)
 src/engine-save.js    save/load persistence, migrations, export/import, and validation
 src/engine-helpers.js automated helper AI (Pip, Barnaby, Marina) and decision logic
+src/engine-progress.js memory progress and shore passport stamp checks
+src/engine-events.js   golden fish, daily mailbox letters, wardrobe & streaks
+src/engine-activities.js campfire cooking & deep-sea diving calculations
 src/scene.js          colony scenery, weather, day/night cycle, waddlers, chatter, and props
 src/audio.js          synthesized sound effects and live procedural lofi music
 src/fx.js             canvas particles and snow, screen shake, visual feedback

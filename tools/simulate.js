@@ -30,6 +30,9 @@ require(path.join(__dirname, "../src/data.js"));
 require(path.join(__dirname, "../src/engine.js"));
 require(path.join(__dirname, "../src/engine-save.js"));
 require(path.join(__dirname, "../src/engine-helpers.js"));
+require(path.join(__dirname, "../src/engine-progress.js"));
+require(path.join(__dirname, "../src/engine-events.js"));
+require(path.join(__dirname, "../src/engine-activities.js"));
 const { engine: E, data: D, fmt, fmtTime } = globalThis.PI;
 
 let simTime = Date.UTC(2026, 9, 1);   // October: no seasonal event
