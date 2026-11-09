@@ -99,7 +99,8 @@ src/scene/
   waddlers.js             resident waddlers: names, walking and chatter
   props.js                colony props: hover details, fish deliveries to the basket and props at work
 src/audio/
-  audio.js                synthesized sound effects and procedural lofi music
+  audio.js                synthesized sound effects and winter wind ambience
+  music.js                procedural lofi music: electric-piano chords, bass, melody, drums and crackle
 src/main/
   main.js                 startup, settings, hotkeys, nap mode and battery saver, PWA and frame loop
   dialogs.js              save controls, What's new, and moving a colony to another device
