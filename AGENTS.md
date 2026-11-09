@@ -59,40 +59,46 @@ AGENTS.md                   Agent guidelines and engineering standards
 README.md                   User-facing documentation and project overview
 
 src/
-├── data.js                 Declarative game tables: colony, upgrades, research,
-│                           heirlooms, helpers, shores, seasons, wardrobe, memories
-├── engine.js               Core state management, event bus, clock, patting warmth,
-│                           offline gains & frame tick (DOM-free; runs in Node.js tools)
-├── engine-math.js          Production multipliers, recalculation, purchase costs,
-│                           milestone bonuses & feather scaling
-├── engine-actions.js       Colony transactions: buildings, upgrades, workshop, heirlooms,
-│                           helpers and migration flow
-├── engine-save.js          Save/load persistence, localStorage, FNV-1a checksums,
-│                           schema migration pipeline, import/export validation
-├── engine-helpers.js       AI algorithms for automated helpers (Pip, Barnaby, Marina)
-├── engine-progress.js      Memory milestones progress and shore passport stamp checks
-├── engine-events.js        Golden fish variants, daily mailbox letters, wardrobe & streaks
-├── engine-activities.js    Campfire kettle recipe costs & deep-sea diving calculations
-├── scene.js                Canvas scenery, day/night weather cycles, aurora & golden fish
-├── scene-props.js          Colony building props, animations, basket fish deliveries
-├── scene-waddlers.js       Resident waddlers wandering, paths, naming & speech bubbles
-├── audio.js                Procedurally synthesized Web Audio SFX (clicks, chirps, sweeps)
-├── audio-music.js          Continuous procedural lofi electric piano, progressions & drums
-├── fx.js                   Canvas particle bursts, screen shake, and visual feedback
-├── penguin.js              Big penguin SVG rendering, outfits, emotions, petting
-├── ui.js                   Root UI coordinator, tab switching & domain delegation
-├── ui-topbar.js            Topbar badges, rolling fish counter, buffs, warmth & frame tick
-├── ui-interactions.js      Gesture interaction handling, hold/rub patting, event wiring
-├── ui-dialogs.js           Accessible modals, toast notifications, tooltips & touch sheet
-├── ui-memories.js          Memories (101 achievements), stats, SVG graph, nap stars
-├── ui-panels.js            Colony store buildings, upgrades list & workshop research
-├── ui-community.js         Shore migration, helpers hiring, passport stamps & wardrobe
-├── ui-activities.js        Campfire Kettle cooking, Diving expeditions and relic display
-├── ui-tree.js              Heirloom SVG skill tree visualization and branch inspection
-├── qr.js                   Self-contained compact QR code generator for saves
-├── main-dialogs.js         Save import/export/reset, device move QR/link & What's new notes
-├── main-nap.js             Nap mode screen, battery saver, bedtime timer & wind-down
-└── main.js                 Settings binding, hotkeys, PWA service worker, frame loop & bootstrap
+├── data.js                     Declarative game tables: colony, upgrades, research,
+│                               heirlooms, helpers, shores, seasons, wardrobe, memories
+├── penguin.js                  Big penguin SVG rendering, outfits, emotions, petting
+├── fx.js                       Canvas particle bursts, screen shake, and visual feedback
+├── qr.js                       Self-contained compact QR code generator for saves
+│
+├── engine/                     Engine simulation and state management
+│   ├── engine.js               Core state, event bus, clock, patting warmth, tick & offline gains
+│   ├── math.js                 Production multipliers, recalculation, purchase costs & feather scaling
+│   ├── actions.js              Colony purchases, research, heirlooms, helpers and migration
+│   ├── save.js                 Persistence, localStorage, checksums, migrations & validation
+│   ├── helpers.js              Automated helper AI algorithms (Pip, Barnaby, Marina)
+│   ├── progress.js             Memory milestones progress and shore passport stamp checks
+│   ├── events.js               Golden fish variants, daily mailbox letters, wardrobe & streaks
+│   └── activities.js           Campfire kettle recipe costs & deep-sea diving calculations
+│
+├── ui/                         DOM presentation and user interaction
+│   ├── ui.js                   Root UI coordinator, tab switching & domain delegation
+│   ├── topbar.js               Topbar badges, rolling fish counter, buffs, warmth & frame tick
+│   ├── interactions.js         Gesture interaction handling, hold/rub patting, event wiring
+│   ├── dialogs.js              Accessible modals, toast notifications, tooltips & touch sheet
+│   ├── panels.js               Colony store buildings, upgrades list & workshop research
+│   ├── community.js            Shore migration, helpers hiring, passport stamps & wardrobe
+│   ├── activities.js           Campfire Kettle cooking, Diving expeditions and relic display
+│   ├── tree.js                 Heirloom SVG skill tree visualization and branch inspection
+│   └── memories.js             Memories (101 achievements), stats, SVG graph, nap stars
+│
+├── scene/                      Visual canvas scenery
+│   ├── scene.js                Canvas scenery, day/night weather cycles, aurora & golden fish
+│   ├── props.js                Colony building props, animations, basket fish deliveries
+│   └── waddlers.js             Resident waddlers wandering, paths, naming & speech bubbles
+│
+├── audio/                      Web Audio sound and music
+│   ├── audio.js                Procedurally synthesized Web Audio SFX (clicks, chirps, sweeps)
+│   └── music.js                Continuous procedural lofi electric piano, progressions & drums
+│
+└── main/                       Application lifecycle and bootstrap
+    ├── main.js                 Settings binding, hotkeys, PWA service worker, frame loop & init
+    ├── dialogs.js              Save import/export/reset, device move QR/link & What's new notes
+    └── nap.js                  Nap mode screen, battery saver, bedtime timer & wind-down
 
 tools/
 ├── check-data.js           Integrity checker for game data and offline assets

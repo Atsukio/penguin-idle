@@ -4,14 +4,14 @@
 const path = require("path");
 globalThis.PI = {};
 require(path.join(__dirname, "../src/data.js"));
-require(path.join(__dirname, "../src/engine.js"));
-require(path.join(__dirname, "../src/engine-math.js"));
-require(path.join(__dirname, "../src/engine-actions.js"));
-require(path.join(__dirname, "../src/engine-save.js"));
-require(path.join(__dirname, "../src/engine-helpers.js"));
-require(path.join(__dirname, "../src/engine-progress.js"));
-require(path.join(__dirname, "../src/engine-events.js"));
-require(path.join(__dirname, "../src/engine-activities.js"));
+require(path.join(__dirname, "../src/engine/engine.js"));
+require(path.join(__dirname, "../src/engine/math.js"));
+require(path.join(__dirname, "../src/engine/actions.js"));
+require(path.join(__dirname, "../src/engine/save.js"));
+require(path.join(__dirname, "../src/engine/helpers.js"));
+require(path.join(__dirname, "../src/engine/progress.js"));
+require(path.join(__dirname, "../src/engine/events.js"));
+require(path.join(__dirname, "../src/engine/activities.js"));
 const { data: D, engine: E } = globalThis.PI;
 
 const problems = [];

@@ -69,41 +69,46 @@ Saves live in your browser's `localStorage`, with a backup copy kept automatical
 ## Project layout
 
 ```text
-index.html            page structure
-style.css             all styling (cozy theme, animations, reduced-motion rules)
-src/data.js           What's new and every table: colony, upgrades, research, tree, helpers, shores, seasons, wardrobe, letters, memories
-src/engine.js         game state, event bus, clock, patting warmth, offline progress and frame tick
-src/engine-math.js    production multipliers, recalculation, purchase costs and feather scaling
-src/engine-actions.js colony transactions: buildings, upgrades, research, heirlooms, helpers, migration
-src/engine-save.js    save/load persistence, migrations, export/import, and validation
-src/engine-helpers.js automated helper AI (Pip, Barnaby, Marina) and decision logic
-src/engine-progress.js memory progress and shore passport stamp checks
-src/engine-events.js   golden fish, daily mailbox letters, wardrobe & streaks
-src/engine-activities.js campfire cooking & deep-sea diving calculations
-src/scene.js          colony landscape scenery, weather, day/night cycles, aurora & golden fish
-src/scene-props.js    colony building props, animations, basket fish deliveries
-src/scene-waddlers.js resident waddlers wandering, paths, naming & speech bubbles
-src/audio.js          synthesized sound effects (clicks, chirps, sweeps)
-src/audio-music.js    procedural lofi electric piano, chord progressions, drums & vinyl crackle
-src/fx.js             canvas particles and snow, screen shake, visual feedback
-src/penguin.js        the big penguin's SVG drawing, outfits and personality
-src/ui.js             root shell coordinator, tab switching & domain delegation
-src/ui-topbar.js      topbar badges, rolling fish counter, buffs, warmth & 60fps frame tick
-src/ui-interactions.js gesture interaction handling, hold/rub patting, event wiring
-src/ui-dialogs.js     modals, toasts, tooltips and the touch info sheet
-src/ui-memories.js    101 memories, statistics, SVG graph and nap stars
-src/ui-panels.js      colony store, upgrades list & workshop research
-src/ui-community.js   shore migration, helpers hiring, passport stamps & wardrobe
-src/ui-activities.js  campfire cooking, diving expeditions & relics
-src/ui-tree.js        heirloom tree SVG skill tree visualization and inspection
-src/qr.js             a small QR code encoder for moving a colony to another device (no DOM)
-src/main-dialogs.js   save import/export/reset, device move QR/link & What's new dialog
-src/main-nap.js       nap mode screen, battery saver, bedtime timer & wind-down
-src/main.js           startup, settings, hotkeys, PWA service worker, frame loop & bootstrap
+index.html                page structure
+style.css                 all styling (cozy theme, animations, reduced-motion rules)
+src/data.js               What's new and every table: colony, upgrades, research, tree, helpers, shores, seasons, wardrobe, letters, memories
+src/penguin.js            the big penguin's SVG drawing, outfits and personality
+src/fx.js                 canvas particles and snow, screen shake, visual feedback
+src/qr.js                 a small QR code encoder for moving a colony to another device (no DOM)
+src/engine/
+  engine.js               game state, event bus, clock, patting warmth, offline progress and frame tick
+  math.js                 production multipliers, recalculation, purchase costs and feather scaling
+  actions.js              colony transactions: buildings, upgrades, research, heirlooms, helpers, migration
+  save.js                 save/load persistence, migrations, export/import, and validation
+  helpers.js              automated helper AI (Pip, Barnaby, Marina) and decision logic
+  progress.js             memory progress and shore passport stamp checks
+  events.js               golden fish, daily mailbox letters, wardrobe & streaks
+  activities.js           campfire cooking & deep-sea diving calculations
+src/ui/
+  ui.js                   root shell coordinator, tab switching & domain delegation
+  topbar.js               topbar badges, rolling fish counter, buffs, warmth & 60fps frame tick
+  interactions.js         gesture interaction handling, hold/rub patting, event wiring
+  dialogs.js              modals, toasts, tooltips and the touch info sheet
+  panels.js               colony store, upgrades list & workshop research
+  community.js            shore migration, helpers hiring, passport stamps & wardrobe
+  activities.js           campfire cooking, diving expeditions & relics
+  tree.js                 heirloom tree SVG skill tree visualization and inspection
+  memories.js             101 memories, statistics, SVG graph and nap stars
+src/scene/
+  scene.js                colony landscape scenery, weather, day/night cycles, aurora & golden fish
+  props.js                colony building props, animations, basket fish deliveries
+  waddlers.js             resident waddlers wandering, paths, naming & speech bubbles
+src/audio/
+  audio.js                synthesized sound effects (clicks, chirps, sweeps)
+  music.js                procedural lofi electric piano, chord progressions, drums & vinyl crackle
+src/main/
+  main.js                 startup, settings, hotkeys, PWA service worker, frame loop & bootstrap
+  dialogs.js              save import/export/reset, device move QR/link & What's new dialog
+  nap.js                  nap mode screen, battery saver, bedtime timer & wind-down
 sw.js, manifest.webmanifest, icons/   installable offline app
-fonts/                self-hosted Fredoka and Nunito (SIL OFL)
-tools/                simulator, data checks and a local server
-tests/                Playwright browser tests
+fonts/                    self-hosted Fredoka and Nunito (SIL OFL)
+tools/                    simulator, data checks and a local server
+tests/                    Playwright browser tests
 ```
 
 ## Development
