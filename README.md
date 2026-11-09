@@ -87,7 +87,8 @@ src/ui/
   ui.js                   root coordinator, tabs, badges, fish counter, frame tick and event wiring
   topbar.js               top bar extras: news dot, letter reset, next goal, warmth, buffs and season badge
   patting.js              patting the big penguin: taps, rubs and hold-to-pat
-  panels.js               colony store, upgrades, workshop research, shores, helpers, letters and wardrobe
+  panels.js               colony store, upgrades and workshop research
+  community.js            migration, shores, passport stamps, helpers, letters and wardrobe
   activities.js           heirloom tree, campfire kettle, diving and relics
   dialogs.js              modals, toasts, tooltips and the touch info sheet
   memories.js             101 memories, statistics, SVG graph and nap stars
