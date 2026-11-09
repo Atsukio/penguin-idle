@@ -1,11 +1,11 @@
 /* Penguin Idle — User Interface Shell & Frame Loop.
  * Coordinates tabs, top bar stats, rolling fish counters, patting interactions,
  * and 60fps frame loop tickers, delegating tab views to specialized modules:
- *   - src/ui-dialogs.js: Modals, Toasts, Tooltips, Touch Sheet
- *   - src/ui-memories.js: Memories (101 achievements), Statistics, SVG History Graph, Nap Stars
- *   - src/ui-panels.js: Colony buildings, Upgrades, Workshop research, Migration/Shores, Helpers, Letters & Wardrobe
- *   - src/ui-activities.js: Heirloom Tree, Campfire Kettle cooking, Diving & Relics
- *   - src/scene.js: Canvas colony landscape, waddlers, chatter, animated props
+ *   - src/ui/dialogs.js: Modals, Toasts, Tooltips, Touch Sheet
+ *   - src/ui/memories.js: Memories (101 achievements), Statistics, SVG History Graph, Nap Stars
+ *   - src/ui/panels.js: Colony buildings, Upgrades, Workshop research, Migration/Shores, Helpers, Letters & Wardrobe
+ *   - src/ui/activities.js: Heirloom Tree, Campfire Kettle cooking, Diving & Relics
+ *   - src/scene/scene.js: Canvas colony landscape, waddlers, chatter, animated props
  */
 (function (PI) {
   "use strict";

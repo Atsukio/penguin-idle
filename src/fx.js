@@ -234,7 +234,7 @@
   };
 
   // =====================================================================
-  // Audio delegation (Sound and procedural lofi Music live in src/audio.js)
+  // Audio delegation (Sound and procedural lofi Music live in src/audio/audio.js)
   // =====================================================================
   const Sound = (PI.audio && PI.audio.Sound) || (PI.fx && PI.fx.Sound) || {
     play() {}, ensure() { return null; }, setAmbience() {}, setVolume() {},

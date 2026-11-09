@@ -53,7 +53,7 @@ Saves live in your browser's `localStorage`, with a backup copy kept automatical
 
 **Move to another device** (Settings → Save) makes a link with a compressed copy of the save in its `#move=` fragment, plus a QR code when it fits (`src/qr.js`, a small built-in encoder). The fragment never reaches the server. Opening the link shows both colonies and asks before replacing anything, and keeps that device's own settings. The production graph is left out to keep the link short.
 
-- Saves are versioned (`SAVE_VERSION` in `src/data.js`) and upgraded step by step through `MIGRATIONS` in `src/engine.js`. Every older save format still loads.
+- Saves are versioned (`SAVE_VERSION` in `src/data.js`) and upgraded step by step through `MIGRATIONS` in `src/engine/save.js`. Every older save format still loads.
 - Every field is checked on load, and derived values (like feathers spent) are recomputed rather than trusted. Exported text carries a checksum.
 - Saves from a newer version are refused rather than overwritten. A damaged save is reported and kept under `penguinIdleSave_v1_corrupt`.
 - Numbers are capped at 1e300 so they can never overflow.
@@ -76,38 +76,25 @@ src/penguin.js            the big penguin's SVG drawing, outfits and personality
 src/fx.js                 canvas particles and snow, screen shake, visual feedback
 src/qr.js                 a small QR code encoder for moving a colony to another device (no DOM)
 src/engine/
-  engine.js               game state, event bus, clock, patting warmth, offline progress and frame tick
-  math.js                 production multipliers, recalculation, purchase costs and feather scaling
-  actions.js              colony transactions: buildings, upgrades, research, heirlooms, helpers, migration
-  save.js                 save/load persistence, migrations, export/import, and validation
+  engine.js               game state, event bus, clock, production maths, purchases, migration, golden fish,
+                          letters, memories, cooking and diving
+  save.js                 save/load persistence, migrations, export/import and validation
   helpers.js              automated helper AI (Pip, Barnaby, Marina) and decision logic
-  progress.js             memory progress and shore passport stamp checks
-  events.js               golden fish, daily mailbox letters, wardrobe & streaks
-  activities.js           campfire cooking & deep-sea diving calculations
 src/ui/
-  ui.js                   root shell coordinator, tab switching & domain delegation
-  topbar.js               topbar badges, rolling fish counter, buffs, warmth & 60fps frame tick
-  interactions.js         gesture interaction handling, hold/rub patting, event wiring
+  ui.js                   root coordinator, tabs, top bar, fish counter, patting and event wiring
+  panels.js               colony store, upgrades, workshop research, shores, helpers, letters and wardrobe
+  activities.js           heirloom tree, campfire kettle, diving and relics
   dialogs.js              modals, toasts, tooltips and the touch info sheet
-  panels.js               colony store, upgrades list & workshop research
-  community.js            shore migration, helpers hiring, passport stamps & wardrobe
-  activities.js           campfire cooking, diving expeditions & relics
-  tree.js                 heirloom tree SVG skill tree visualization and inspection
   memories.js             101 memories, statistics, SVG graph and nap stars
 src/scene/
-  scene.js                colony landscape scenery, weather, day/night cycles, aurora & golden fish
-  props.js                colony building props, animations, basket fish deliveries
-  waddlers.js             resident waddlers wandering, paths, naming & speech bubbles
+  scene.js                colony scenery, weather, day/night, aurora, props, residents and golden fish
 src/audio/
-  audio.js                synthesized sound effects (clicks, chirps, sweeps)
-  music.js                procedural lofi electric piano, chord progressions, drums & vinyl crackle
+  audio.js                synthesized sound effects and procedural lofi music
 src/main/
-  main.js                 startup, settings, hotkeys, PWA service worker, frame loop & bootstrap
-  dialogs.js              save import/export/reset, device move QR/link & What's new dialog
-  nap.js                  nap mode screen, battery saver, bedtime timer & wind-down
+  main.js                 startup, settings, hotkeys, saves, device moves, What's new, naps, PWA and frame loop
 sw.js, manifest.webmanifest, icons/   installable offline app
 fonts/                    self-hosted Fredoka and Nunito (SIL OFL)
-tools/                    simulator, data checks and a local server
+tools/                    simulator, engine tests, data checks and a local server
 tests/                    Playwright browser tests
 ```
 
@@ -118,12 +105,13 @@ npm install          # test tools only; the game itself has no dependencies
 npm run check        # data integrity: unique ids and icons, valid tree links, ...
 npm run simulate     # balance simulator: a bot plays 48h and reports pacing
 npm run balance      # the simulator's CI check (72 simulated hours, fails on runaways or stalls)
+npm run test:engine  # engine tests in Node: saves, migrations, time away, feathers (about a second)
 npm test             # browser tests (desktop + phone). Locally: PW_CHANNEL=msedge npm test
 ```
 
 GitHub Actions runs all of these on every push and pull request (`.github/workflows/ci.yml`).
 
-**Tuning balance:** all numbers live in the tables in `src/data.js`. After changing them, run `npm run simulate -- --hours 120` (and `--profile idle`) to see how pacing shifts. Every bonus is folded into one modifier object in `recompute()` in `src/engine.js`.
+**Tuning balance:** all numbers live in the tables in `src/data.js`. After changing them, run `npm run simulate -- --hours 120` (and `--profile idle`) to see how pacing shifts. Every bonus is folded into one modifier object in `recompute()` in `src/engine/engine.js`.
 
 **Releasing:** pushing to `main` updates the live site via GitHub Pages. When files are added or renamed, update the list in `sw.js` and bump its `CACHE` name so installed copies pick up the change.
 

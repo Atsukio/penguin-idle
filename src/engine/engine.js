@@ -940,7 +940,7 @@
 
   const relicLevel = id => (S.relics && S.relics[id]) || 0;
 
-  // Helper automation AI lives in src/engine-helpers.js (PI.helpers / PI.engine)
+  // Helper automation AI lives in src/engine/helpers.js (PI.helpers / PI.engine)
   const diverPickSpot = () => (E.diverPickSpot ? E.diverPickSpot() : null);
   const bestBuilding = () => (E.bestBuilding ? E.bestBuilding() : null);
   const runHelpers = dt => (E.runHelpers ? E.runHelpers(dt) : false);
@@ -1030,7 +1030,7 @@
   }
 
   // =====================================================================
-  // Saves: moved to src/engine-save.js (PI.save / PI.engine)
+  // Saves: moved to src/engine/save.js (PI.save / PI.engine)
   // =====================================================================
   const save = () => (E.save ? E.save() : false);
 

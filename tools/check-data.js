@@ -2,12 +2,7 @@
 /* Data integrity checks: run before every commit (and in CI).  node tools/check-data.js */
 "use strict";
 const path = require("path");
-globalThis.PI = {};
-require(path.join(__dirname, "../src/data.js"));
-require(path.join(__dirname, "../src/engine.js"));
-require(path.join(__dirname, "../src/engine-save.js"));
-require(path.join(__dirname, "../src/engine-helpers.js"));
-const { data: D, engine: E } = globalThis.PI;
+const { data: D, engine: E } = require(path.join(__dirname, "load-engine.js"));
 
 const problems = [];
 const dupes = list => list.filter((x, i) => list.indexOf(x) !== i);
