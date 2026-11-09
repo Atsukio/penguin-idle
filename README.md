@@ -90,7 +90,9 @@ src/ui/
   dialogs.js              modals, toasts, tooltips and the touch info sheet
   memories.js             101 memories, statistics, SVG graph and nap stars
 src/scene/
-  scene.js                colony scenery, weather, day/night, aurora, props, residents and golden fish
+  scene.js                colony scenery, weather, day/night, aurora and golden fish
+  waddlers.js             resident waddlers: names, walking and chatter
+  props.js                colony props: hover details, fish deliveries to the basket and props at work
 src/audio/
   audio.js                synthesized sound effects and procedural lofi music
 src/main/

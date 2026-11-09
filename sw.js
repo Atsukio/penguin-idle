@@ -7,7 +7,7 @@
 const CACHE = "penguin-idle-v4.4";
 const FILES = [
   "./", "index.html", "style.css", "manifest.webmanifest",
-  "src/data.js", "src/engine/engine.js", "src/engine/progress.js", "src/engine/events.js", "src/engine/activities.js", "src/engine/actions.js", "src/engine/save.js", "src/engine/helpers.js", "src/qr.js", "src/audio/audio.js", "src/fx.js", "src/penguin.js", "src/ui/activities.js", "src/ui/dialogs.js", "src/ui/memories.js", "src/ui/panels.js", "src/ui/ui.js", "src/scene/scene.js", "src/main/main.js",
+  "src/data.js", "src/engine/engine.js", "src/engine/progress.js", "src/engine/events.js", "src/engine/activities.js", "src/engine/actions.js", "src/engine/save.js", "src/engine/helpers.js", "src/qr.js", "src/audio/audio.js", "src/fx.js", "src/penguin.js", "src/ui/activities.js", "src/ui/dialogs.js", "src/ui/memories.js", "src/ui/panels.js", "src/ui/ui.js", "src/scene/scene.js", "src/scene/waddlers.js", "src/scene/props.js", "src/main/main.js",
   "fonts/fonts.css", "fonts/fredoka-latin.woff2", "fonts/nunito-latin.woff2",
   "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png",
 ];
