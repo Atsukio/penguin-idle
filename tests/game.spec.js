@@ -283,7 +283,7 @@ test("Heirloom Tree: learn, prerequisites and free refunds", async ({ page }) =>
   await page.locator('#tree [data-id="nest"]').click();
   await page.locator("#learnBtn").click();
   expect(await state(page, () => window.penguinIdle.state.heritage)).toEqual({ headstart: 1, nest: 1 });
-  await expect(page.locator("#treeLines line")).toHaveCount(26);
+  await expect(page.locator("#treeLines line")).toHaveCount(38);
   await page.locator("#respecBtn").click();
   await page.locator(".modal .btn.primary").click();
   expect(await state(page, () => window.penguinIdle.state.feathersSpent)).toBe(0);

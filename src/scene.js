@@ -611,5 +611,6 @@
     startChat,
     startWork,
     propAct,
+    propTooltip,
   };
 })(window.PI = window.PI || {});
