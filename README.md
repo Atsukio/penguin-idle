@@ -72,11 +72,16 @@ Saves live in your browser's `localStorage`, with a backup copy kept automatical
 index.html            page structure
 style.css             all styling (cozy theme, animations, reduced-motion rules)
 src/data.js           What's new and every table: colony, upgrades, research, tree, helpers, shores, seasons, wardrobe, letters, memories
-src/engine.js         game state, maths, actions and saves (no DOM; also runs in Node)
-src/qr.js             a small QR code encoder for moving a colony to another device (no DOM)
-src/fx.js             canvas particles and snow, screen shake, synthesized sound
+src/engine.js         game state, maths, and actions (no DOM; also runs in Node)
+src/engine-save.js    save/load persistence, migrations, export/import, and validation
+src/engine-helpers.js automated helper AI (Pip, Barnaby, Marina) and decision logic
+src/scene.js          colony scenery, weather, day/night cycle, waddlers, chatter, and props
+src/audio.js          synthesized sound effects and live procedural lofi music
+src/fx.js             canvas particles and snow, screen shake, visual feedback
 src/penguin.js        the big penguin's drawing, outfits and personality
-src/ui.js             all screens, dialogs, tooltips and the touch info sheet
+src/ui.js             screens, dialogs, tooltips and the touch info sheet
+src/ui-activities.js  heirloom tree SVG, campfire cooking, diving & relics
+src/qr.js             a small QR code encoder for moving a colony to another device (no DOM)
 src/main.js           startup, game loop, settings, hotkeys, offline app
 sw.js, manifest.webmanifest, icons/   installable offline app
 fonts/                self-hosted Fredoka and Nunito (SIL OFL)
