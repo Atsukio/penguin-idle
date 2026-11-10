@@ -135,7 +135,7 @@ test("What's new: new players are up to date, returning players get the news onc
   await expect(page.locator("#newsBadge")).toBeHidden();
   // Remembered after a reload
   await page.reload();
-  await page.waitForTimeout(2000);
+  await page.waitForTimeout(2000);   // the news toast is delayed 1.5s, so wait past it before checking it never came
   await expect(page.locator("#newsBadge")).toBeHidden();
   await expect(page.locator(".toast", { hasText: "The colony has news" })).toHaveCount(0);
   await ctx.close();
@@ -636,10 +636,9 @@ test("napping shows a dark, low-power screen that keeps fishing, and only the bu
   expect(await state(page, () => PI.fx.Particles.snowWanted())).toBe(false);
   // The colony keeps fishing, and the nap screen keeps count
   const before = await state(page, () => window.penguinIdle.state.fish);
-  await page.waitForTimeout(2200);
+  await expect.poll(() => state(page, () => window.penguinIdle.state.stats.napSeconds), { timeout: 5000 }).toBeGreaterThan(1);
   expect(await state(page, () => window.penguinIdle.state.fish)).toBeGreaterThan(before);
   await expect(page.locator("#napFish")).toHaveText(await state(page, () => window.penguinIdle.fmt(Math.floor(window.penguinIdle.state.fish))));
-  expect(await state(page, () => window.penguinIdle.state.stats.napSeconds)).toBeGreaterThan(1);
   // Stray keys and taps don't wake it (and B doesn't buy upgrades); only the button does
   const ups = await state(page, () => window.penguinIdle.state.upgrades.length);
   await page.keyboard.press("b");
@@ -734,8 +733,7 @@ test("an hour-long nap's golden fish brings a Cocoa Rush, and naps show up in St
   await closeModals(page);
   await page.evaluate(() => { const g = window.penguinIdle; g.state.buildings.chick = 10; g.engine.recompute(); });
   await page.keyboard.press("z");
-  await page.waitForTimeout(1500);
-  expect(await state(page, () => window.penguinIdle.state.stats.napBonusFish)).toBeGreaterThan(0);
+  await expect.poll(() => state(page, () => window.penguinIdle.state.stats.napBonusFish), { timeout: 5000 }).toBeGreaterThan(0);
   await page.evaluate(() => window.penguinIdle.nap.sleptFor(61 * 60000));
   await page.locator("#napWake").click();
   await expect(page.locator("#toasts")).toContainText("Cocoa Rush");
@@ -796,8 +794,7 @@ test("notes wait for the wake card, stars remember their nap, and bedtime winds 
   await page.keyboard.press("z");
   // A memory earned mid-nap, crossing the first napped hour (which dates star 1)
   await page.evaluate(() => { const g = window.penguinIdle; g.state.stats.napSeconds = 3599; PI.ui.toast("💌 A note during the nap"); });
-  await page.waitForTimeout(1300);
-  expect(await state(page, () => window.penguinIdle.state.napStars.length)).toBe(1);
+  await expect.poll(() => state(page, () => window.penguinIdle.state.napStars.length), { timeout: 5000 }).toBe(1);
   expect(await state(page, () => window.penguinIdle.state.napStars[0])).toBeGreaterThan(0);
   await page.evaluate(() => window.penguinIdle.nap.sleptFor(60000));
   await page.locator("#napWake").click();
@@ -881,8 +878,7 @@ test("a nap streak forgives one missed day a week, shows on the nap screen, and 
   await page.keyboard.press("z");
   await expect(page.locator("#napBuffs")).toContainText("Nap streak: day 4");
   await expect(page.locator("#napSvg .p-mask")).toBeAttached();
-  await page.waitForTimeout(2000);
-  expect(await page.evaluate(() => getComputedStyle(document.querySelector("#napSvg .p-mask")).transform)).not.toBe("none");
+  await expect.poll(() => page.evaluate(() => getComputedStyle(document.querySelector("#napSvg .p-mask")).transform), { timeout: 5000 }).not.toBe("none");
   await page.locator("#napWake").click();
   // What's new groups each release under headings (4.4 is newest, then 4.3)
   await page.keyboard.press("6");
