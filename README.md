@@ -114,7 +114,8 @@ tests/                    Playwright browser tests
 
 ```bash
 npm install          # test tools only; the game itself has no dependencies
-npm run check        # data integrity: unique ids and icons, valid tree links, ...
+npm run lint         # ESLint: fails on names a script uses that nothing defines
+npm run check        # data integrity: unique ids and icons, valid tree links, styled classes, ...
 npm run simulate     # balance simulator: a bot plays 48h and reports pacing
 npm run balance      # the simulator's CI check (72 simulated hours, fails on runaways or stalls)
 npm run test:engine  # engine tests in Node: saves, migrations, time away, feathers (about a second)

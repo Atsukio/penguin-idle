@@ -15,16 +15,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Fast node checks: no npm install needed, so they report in seconds.
+  # Fast node checks, run alongside the browser tests.
   checks:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0   # full history, so the refactor guard can compare each commit with its parent
 
       - uses: actions/setup-node@v7
         with:
           node-version: 22
+          cache: npm
+
+      - name: Install lint tools
+        run: npm ci
+
+      - name: Undefined names (ESLint)
+        run: npm run lint
+
+      - name: Refactor guard (refactor commits must not change any function)
+        run: node tools/refactor-guard.js "$BASE" "$HEAD"
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Data integrity
         run: npm run check

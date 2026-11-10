@@ -67,6 +67,33 @@ check(pkg.replace(/\.0$/, "") === D.GAME_VERSION, `package.json version ${pkg} d
 // Every tree node and research text renders for each level without throwing
 D.TREE.forEach(n => { for (let L = 1; L <= n.max; L++) check(typeof n.text(L) === "string", `tree node ${n.id} text fails at level ${L}`); });
 
+// Every class the scripts put on elements is styled in style.css, so markup can't silently lose its look.
+// These are set from JS on purpose without a style rule (hooks the code looks up, or deliberately plain).
+// Add to this list only when a new unstyled class is intended.
+const UNSTYLED_CLASSES = new Set([
+  "b-cost", "d-start-btn", "i-body", "k-cook-btn", "modal-body", "p-eyes", "p-hat", "p-hat-emoji", "p-item-emoji",
+  "p-scarf", "p-shadow", "p-wing", "patting", "r-cost", "seal-icon", "stamp-dest", "u-icon", "w-name",
+]);
+{
+  const css = read("style.css").replace(/\/\*[\s\S]*?\*\//g, "");
+  const styled = new Set([...css.matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)].map(m => m[1]));
+  const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
+  const seen = new Map();   // unstyled class -> first place it's set
+  for (const file of walk(path.join(__dirname, "..", "src")).filter(f => f.endsWith(".js"))) {
+    fs.readFileSync(file, "utf8").split("\n").forEach((line, i) => {
+      const where = `${path.relative(path.join(__dirname, ".."), file).split(path.sep).join("/")}:${i + 1}`;
+      const names = [];
+      // static words only: dynamic parts (${...}) and runtime-built prefixes like `tier-${n}` are skipped
+      const words = s => s.replace(/\$\{[^}]*\}\S*/g, " ").split(/\s+/).filter(w => w && !w.endsWith("-"));
+      for (const m of line.matchAll(/class="([^"]*)"/g)) names.push(...words(m[1]));
+      for (const m of line.matchAll(/className\s*=\s*["'`]([^"'`]*)["'`]/g)) names.push(...words(m[1]));
+      for (const m of line.matchAll(/classList\.(?:add|toggle|remove|contains)\(\s*["'`]([^"'`$]+)["'`]/g)) names.push(m[1]);
+      names.filter(c => /^-?[_a-zA-Z][\w-]*$/.test(c) && !styled.has(c) && !UNSTYLED_CLASSES.has(c) && !seen.has(c)).forEach(c => seen.set(c, where));
+    });
+  }
+  seen.forEach((where, c) => check(false, `class "${c}" (${where}) has no rule in style.css: style it, fix the name, or add it to UNSTYLED_CLASSES`));
+}
+
 if (problems.length) {
   console.error(`Data check FAILED (${problems.length}):\n  - ${problems.join("\n  - ")}`);
   process.exit(1);

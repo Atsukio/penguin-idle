@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /* Refactor guard: checks that moving code between files didn't change what any function does.
  *
- *   node tools/compare-functions.js            compare src/ against the last commit (HEAD)
- *   node tools/compare-functions.js main~3     compare against any git ref
- *   node tools/compare-functions.js HEAD name  print the old and new body of one function
+ *   node tools/compare-functions.js                    compare src/ on disk against the last commit (HEAD)
+ *   node tools/compare-functions.js main~3             compare src/ on disk against any git ref
+ *   node tools/compare-functions.js abc^ --to abc      compare two commits (used by tools/refactor-guard.js)
+ *   node tools/compare-functions.js HEAD --show name   print the old and new body of one function
  *
  * Every named `function` in src/ at the ref is matched by name to src/ now. Comments, whitespace and
  * accessor style are ignored (S() vs S, E() vs E, PI.engine vs E, PI.data vs D, trailing commas),
@@ -16,8 +17,11 @@ const path = require("path");
 const { execFileSync } = require("child_process");
 
 const ROOT = path.join(__dirname, "..");
-const ref = process.argv[2] || "HEAD";
-const only = process.argv[3];
+const args = process.argv.slice(2);
+const flag = name => { const i = args.indexOf(`--${name}`); return i >= 0 ? args.splice(i, 2)[1] : null; };
+const toRef = flag("to");        // null = the files on disk
+const only = flag("show");
+const ref = args[0] || "HEAD";
 
 const norm = s => s
   .replace(/\/\*[\s\S]*?\*\//g, "")
@@ -52,13 +56,16 @@ function collect(files, read) {
   return all;
 }
 
-const git = args => execFileSync("git", args, { cwd: ROOT, encoding: "utf8", maxBuffer: 64 << 20 });
-const oldFiles = git(["ls-tree", "-r", "--name-only", ref, "src"]).split("\n").filter(f => f.endsWith(".js"));
+const git = argv => execFileSync("git", argv, { cwd: ROOT, encoding: "utf8", maxBuffer: 64 << 20 });
+const filesAt = r => git(["ls-tree", "-r", "--name-only", r, "src"]).split("\n").filter(f => f.endsWith(".js"));
 const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
-const newFiles = walk(path.join(ROOT, "src")).filter(f => f.endsWith(".js")).map(f => path.relative(ROOT, f).split(path.sep).join("/"));
+const diskFiles = () => walk(path.join(ROOT, "src")).filter(f => f.endsWith(".js")).map(f => path.relative(ROOT, f).split(path.sep).join("/"));
+const newLabel = toRef || "now";
 
-const before = collect(oldFiles, f => git(["show", `${ref}:${f}`]));
-const after = collect(newFiles, f => fs.readFileSync(path.join(ROOT, f), "utf8"));
+const before = collect(filesAt(ref), f => git(["show", `${ref}:${f}`]));
+const after = toRef
+  ? collect(filesAt(toRef), f => git(["show", `${toRef}:${f}`]))
+  : collect(diskFiles(), f => fs.readFileSync(path.join(ROOT, f), "utf8"));
 
 const problems = [];
 for (const name of Object.keys(before).sort()) {
@@ -66,13 +73,14 @@ for (const name of Object.keys(before).sort()) {
   const now = new Set(after[name].map(x => x.key));
   if (before[name].some(x => now.has(x.key))) continue;
   problems.push(`${name.padEnd(24)} changed: ${before[name][0].file} -> ${after[name][0].file}`);
-  if (only === name) console.log(`=== ${ref}: ${before[name][0].file}\n${before[name][0].raw}\n=== now: ${after[name][0].file}\n${after[name][0].raw}\n`);
+  if (only === name) console.log(`=== ${ref}: ${before[name][0].file}\n${before[name][0].raw}\n=== ${newLabel}: ${after[name][0].file}\n${after[name][0].raw}\n`);
 }
 
 if (only) process.exit(0);
 const total = Object.keys(before).length;
+const against = toRef ? `${ref} -> ${toRef}` : ref;
 if (problems.length) {
-  console.log(`${problems.length} of ${total} functions differ from ${ref}:\n  ${problems.join("\n  ")}`);
+  console.log(`${problems.length} of ${total} functions differ (${against}):\n  ${problems.join("\n  ")}`);
   process.exit(1);
 }
-console.log(`All ${total} functions match ${ref} (ignoring comments, whitespace and accessor style).`);
+console.log(`All ${total} functions match (${against}), ignoring comments, whitespace and accessor style.`);
