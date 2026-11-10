@@ -1,10 +1,16 @@
 # 🐧 Penguin Idle
 
+[![Play it](https://img.shields.io/badge/play-in_your_browser-ff8a65?logo=googlechrome&logoColor=white)](https://atsukio.github.io/penguin-idle/)
+[![Version](https://img.shields.io/github/package-json/v/Atsukio/penguin-idle?label=version)](https://github.com/Atsukio/penguin-idle/commits/main)
+[![CI](https://github.com/Atsukio/penguin-idle/actions/workflows/ci.yml/badge.svg)](https://github.com/Atsukio/penguin-idle/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![XERJ Corpus Hub contributor](https://hub.xerj.org/contributors/Atsukio/badge.svg)](https://hub.xerj.org/contributors/Atsukio)
 
 A cozy idle game. Pat the big penguin to catch fish, grow a little colony that fishes, knits and sips cocoa through the long Antarctic winter, then lead the Great Migration to new shores for permanent Emperor Feathers.
 
 **▶ Play it: <https://atsukio.github.io/penguin-idle/>**
+
+![Patting the penguin as the colony fishes](docs/gameplay.gif)
 
 Plain HTML/CSS/JS with no build step and no runtime dependencies. It's installable as an app and plays offline.
 
@@ -108,6 +114,7 @@ src/main/
   dialogs.js              save controls, What's new, and moving a colony to another device
 sw.js, manifest.webmanifest, icons/   installable offline app
 fonts/                    self-hosted Fredoka and Nunito (SIL OFL)
+docs/                     README media (gameplay GIF)
 tools/                    simulator, engine tests, data checks and a local server
 tests/                    Playwright browser tests
 ```
