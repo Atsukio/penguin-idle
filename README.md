@@ -1,5 +1,7 @@
 # 🐧 Penguin Idle
 
+[![XERJ Corpus Hub contributor](https://hub.xerj.org/contributors/Atsukio/badge.svg)](https://hub.xerj.org/contributors/Atsukio)
+
 A cozy idle game. Pat the big penguin to catch fish, grow a little colony that fishes, knits and sips cocoa through the long Antarctic winter, then lead the Great Migration to new shores for permanent Emperor Feathers.
 
 **▶ Play it: <https://atsukio.github.io/penguin-idle/>**
